@@ -18,7 +18,6 @@ import {
   withAddedCategory,
   buildNewCategoryWikitext,
   parseWikidataQid,
-  withUpdatedWikidataQid,
 } from "./wikitext";
 
 export { stripCategoryPrefix, withCategoryPrefix };
@@ -112,8 +111,14 @@ async function apiPost(base: string, params: Params): Promise<unknown> {
   return res.json();
 }
 
-async function getCsrfToken(): Promise<string> {
-  const data = (await apiPost(COMMONS_API, {
+/**
+ * CSRF tokens are per-wiki, not global — a token minted on Commons can't be
+ * used to edit Wikidata, even though the OAuth bearer token itself is valid
+ * across the whole Wikimedia cluster. Pass WIKIDATA_API when writing there
+ * (e.g. wbsetsitelink).
+ */
+async function getCsrfToken(base: string = COMMONS_API): Promise<string> {
+  const data = (await apiPost(base, {
     action: "query",
     meta: "tokens",
     type: "csrf",
@@ -927,15 +932,17 @@ export async function removeCategoryMembership(
 export interface CreateCategoryResult {
   moved: string[];
   failed: { title: string; error: string }[];
+  wikidataError?: string;
 }
 
 /**
  * Create a new Commons category page under `parentCategory`, optionally
- * noting an existing Wikidata item, then recategorize each selected file
- * into it (removing the old `parentCategory` link from each, mirroring
- * drag-and-drop "move" semantics). Individual file failures don't abort the
- * whole operation — they're reported back so the caller can show which
- * ones need a manual retry.
+ * linking it to an existing Wikidata item via a real sitelink, then
+ * recategorize each selected file into it (removing the old
+ * `parentCategory` link from each, mirroring drag-and-drop "move"
+ * semantics). Individual file failures don't abort the whole operation —
+ * they're reported back so the caller can show which ones need a manual
+ * retry.
  */
 export async function createCategoryFromSelection(
   name: string,
@@ -949,7 +956,7 @@ export async function createCategoryFromSelection(
   const createResult = (await apiPost(COMMONS_API, {
     action: "edit",
     title: categoryTitle,
-    text: buildNewCategoryWikitext(parentCategory, wikidataQid),
+    text: buildNewCategoryWikitext(parentCategory),
     summary: "Create category via WCE",
     createonly: 1,
     token,
@@ -959,6 +966,15 @@ export async function createCategoryFromSelection(
     throw new Error(
       createResult.error.info ?? createResult.error.code ?? "Could not create category",
     );
+  }
+
+  let wikidataError: string | undefined;
+  if (wikidataQid) {
+    try {
+      await setCategorySitelink(name, wikidataQid);
+    } catch (err) {
+      wikidataError = err instanceof Error ? err.message : "Wikidata link failed";
+    }
   }
 
   const moved: string[] = [];
@@ -975,14 +991,14 @@ export async function createCategoryFromSelection(
     }
   }
 
-  return { moved, failed };
+  return { moved, failed, wikidataError };
 }
 
 /** Resolve the Wikidata id to prefill in the edit-category modal: prefer the
  * real sitelink (pageprops `wikibase_item`, same source as the sidebar's
  * WikidataBadge) and fall back to the informational `{{Wikidata Infobox}}`
- * note in the page's wikitext, which is the only option for categories
- * without a real sitelink yet. */
+ * note in the page's wikitext, which older category pages may carry from
+ * before WCE could create real sitelinks. */
 export async function getCategoryWikidataNote(
   category: string,
 ): Promise<string | null> {
@@ -995,19 +1011,58 @@ export async function getCategoryWikidataNote(
   return page ? parseWikidataQid(page.wikitext) : null;
 }
 
-/** Set or clear the `{{Wikidata Infobox}}` note on a category page. */
-export async function updateCategoryWikidataNote(
+interface SitelinkResponse {
+  error?: { code?: string; info?: string };
+}
+
+/** Create or repoint the `commonswiki` sitelink on a Wikidata item to point
+ * at this category page — the real bidirectional link, as opposed to the
+ * informational `{{Wikidata Infobox}}` note. Fails if that item already has
+ * a commonswiki sitelink pointing elsewhere (Wikidata enforces one sitelink
+ * per wiki per item) or if `qid` doesn't exist. */
+export async function setCategorySitelink(
   category: string,
-  qid: string | null,
+  qid: string,
 ): Promise<void> {
   const title = withCategoryPrefix(category);
-  const page = await fetchPageWikitext(title);
-  if (!page) throw new Error("Category not found");
+  const token = await getCsrfToken(WIKIDATA_API);
+  const data = (await apiPost(WIKIDATA_API, {
+    action: "wbsetsitelink",
+    id: qid,
+    linksite: "commonswiki",
+    linktitle: title,
+    summary: "Link via WCE",
+    token,
+  })) as SitelinkResponse;
 
-  const updated = withUpdatedWikidataQid(page.wikitext, qid);
-  if (updated === page.wikitext) return;
+  if (data.error) {
+    throw new Error(
+      data.error.info ?? data.error.code ?? "Could not set Wikidata sitelink",
+    );
+  }
+}
 
-  await postEdit(title, updated, "Update Wikidata note via WCE", page.timestamp);
+/** Remove the `commonswiki` sitelink from whichever Wikidata item currently
+ * points at this category, if any. */
+export async function clearCategorySitelink(category: string): Promise<void> {
+  const title = withCategoryPrefix(category);
+  const meta = await fetchCategoryMeta(title);
+  if (!meta.wikibaseItem) return;
+
+  const token = await getCsrfToken(WIKIDATA_API);
+  const data = (await apiPost(WIKIDATA_API, {
+    action: "wbsetsitelink",
+    id: meta.wikibaseItem,
+    linksite: "commonswiki",
+    summary: "Unlink via WCE",
+    token,
+  })) as SitelinkResponse;
+
+  if (data.error) {
+    throw new Error(
+      data.error.info ?? data.error.code ?? "Could not remove Wikidata sitelink",
+    );
+  }
 }
 
 interface MoveResponse {

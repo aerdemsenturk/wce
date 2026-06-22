@@ -255,12 +255,12 @@ export default function BrowserProvider({
             change.files.map((f) => f.title),
             change.wikidataQid,
           );
-          if (result.failed.length > 0) {
+          if (result.failed.length > 0 || result.wikidataError) {
             results.push({
               changeId: change.id,
               label: change.label,
               status: "skipped",
-              message: result.failed.map((f) => f.title).join(", "),
+              message: result.wikidataError ?? result.failed.map((f) => f.title).join(", "),
             });
             continue;
           }

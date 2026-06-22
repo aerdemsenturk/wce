@@ -98,7 +98,7 @@
     "nameLabel": "Category name",
     "qidLabel": "Wikidata item (optional)",
     "qidPlaceholder": "e.g. Q12345",
-    "qidNote": "This is added as an informational note only; it does not create a real Wikidata sitelink.",
+    "qidNote": "When published, this creates a real Wikidata sitelink between the category page and this item.",
     "save": "Save",
     "cancel": "Cancel",
     "renameLabel": "{oldName} → {newName} will be renamed"
@@ -113,6 +113,7 @@
     "parentNote": "Will be created as a subcategory of {parent}.",
     "qidLabel": "Wikidata item (optional)",
     "qidPlaceholder": "e.g. Q12345",
+    "qidNote": "When published, this creates a real Wikidata sitelink between the category page and this item.",
     "itemsLabel": "{count, plural, one {# item included} other {# items included}}",
     "cancel": "Cancel",
     "create": "Create",

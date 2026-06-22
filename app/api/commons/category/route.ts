@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   addCategoryMembership,
+  clearCategorySitelink,
   createCategoryFromSelection,
   getCategoryChildren,
   getCategoryFiles,
@@ -10,7 +11,7 @@ import {
   moveCategoryMembership,
   removeCategoryMembership,
   renameCategory,
-  updateCategoryWikidataNote,
+  setCategorySitelink,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
 
@@ -115,8 +116,10 @@ export async function PATCH(request: NextRequest) {
 
       let wikidataError: string | undefined;
       if (body.wikidataQid !== undefined) {
+        const qid = body.wikidataQid?.trim() || null;
         try {
-          await updateCategoryWikidataNote(newName, body.wikidataQid?.trim() || null);
+          if (qid) await setCategorySitelink(newName, qid);
+          else await clearCategorySitelink(newName);
         } catch (err) {
           wikidataError = err instanceof Error ? err.message : "Wikidata update failed";
         }

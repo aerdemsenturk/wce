@@ -234,7 +234,6 @@ function DetailContent({ title }: { title: string }) {
                 title={title}
                 pageid={detail.pageid}
                 depicts={detail.depicts}
-                structuredDataUrl={`https://commons.wikimedia.org/wiki/Special:EntityPage/${detail.mediaId}`}
               />
             </Field>
           </div>

@@ -11,12 +11,10 @@ export default function DepictsList({
   title,
   pageid,
   depicts,
-  structuredDataUrl,
 }: {
   title: string;
   pageid: number;
   depicts: Depict[];
-  structuredDataUrl: string;
 }) {
   const t = useTranslations("detail");
   const { addChange } = useBrowser();
@@ -68,18 +66,6 @@ export default function DepictsList({
             {t("addDepict")}
           </button>
         </li>
-
-        {depicts.length === 0 && (
-          <li>
-            <ExternalLink
-              href={structuredDataUrl}
-              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline"
-            >
-              {t("addOnCommons")}
-              <ExternalIcon />
-            </ExternalLink>
-          </li>
-        )}
       </ul>
 
       {adding && (

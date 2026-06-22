@@ -249,9 +249,9 @@ export interface RenameCategoryResult {
 }
 
 /** Rename a category page and recategorize its direct files, optionally
- * setting/clearing its Wikidata note in the same request (edit-category
- * modal). Pass `wikidataQid: null` to clear the note, or omit it to leave
- * the note untouched. */
+ * setting/clearing its real Wikidata sitelink in the same request
+ * (edit-category modal). Pass `wikidataQid: null` to remove the sitelink, or
+ * omit it to leave it untouched. */
 export async function renameCategory(
   oldName: string,
   newName: string,
@@ -277,7 +277,8 @@ export async function renameCategory(
   return res.json();
 }
 
-/** Read a category's informational Wikidata note (if any), for prefilling
+/** Read a category's linked Wikidata item — the real sitelink if one
+ * exists, otherwise a legacy `{{Wikidata Infobox}}` note — for prefilling
  * the edit-category modal. */
 export async function fetchCategoryWikidataNote(
   category: string,
@@ -292,6 +293,7 @@ export async function fetchCategoryWikidataNote(
 export interface CreateCategoryResult {
   moved: string[];
   failed: { title: string; error: string }[];
+  wikidataError?: string;
 }
 
 /** Create a new category under `parent` and recategorize the given files into

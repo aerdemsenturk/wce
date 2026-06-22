@@ -79,7 +79,7 @@ export default function CreateCategoryModal({
         />
       </FormField>
 
-      <FormField label={t("qidLabel")}>
+      <FormField label={t("qidLabel")} note={t("qidNote")}>
         <input
           value={qid}
           onChange={(e) => setQid(e.target.value)}

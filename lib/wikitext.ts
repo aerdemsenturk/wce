@@ -397,42 +397,19 @@ export function withAddedCategory(wikitext: string, category: string): string {
   return `${trimmed}\n[[Category:${category}]]\n`;
 }
 
-/**
- * Build the wikitext for a brand-new Commons category page: a parent
- * category link, plus an optional informational note pointing at an
- * existing Wikidata item (this does *not* create a Wikidata sitelink — it's
- * just a human-readable cross-reference written on the Commons side).
- */
-export function buildNewCategoryWikitext(
-  parentCategory: string,
-  wikidataQid?: string | null,
-): string {
-  const note = wikidataQid
-    ? `{{Wikidata Infobox|qid=${wikidataQid}}}\n`
-    : "";
-  return `${note}[[Category:${parentCategory}]]\n`;
+/** Build the wikitext for a brand-new Commons category page: just the
+ * parent category link. Any Wikidata link is a real sitelink created
+ * separately via `setCategorySitelink`, not written into this wikitext. */
+export function buildNewCategoryWikitext(parentCategory: string): string {
+  return `[[Category:${parentCategory}]]\n`;
 }
 
 const WIKIDATA_NOTE_RE = /\{\{\s*Wikidata Infobox\s*\|\s*qid\s*=\s*([^}|]+?)\s*\}\}\n?/i;
 
 /** Read the qid out of a category's informational `{{Wikidata Infobox}}`
- * note, if present — see buildNewCategoryWikitext for what this note is
- * (and isn't: not a real Wikidata sitelink). */
+ * note, if present. Older category pages may carry this note from before
+ * WCE could create real Wikidata sitelinks — kept as a read-only fallback
+ * for `getCategoryWikidataNote`. */
 export function parseWikidataQid(wikitext: string): string | null {
   return WIKIDATA_NOTE_RE.exec(wikitext)?.[1]?.trim() ?? null;
-}
-
-/** Set, replace, or (passing `null`) remove the `{{Wikidata Infobox}}` note
- * on a category page. */
-export function withUpdatedWikidataQid(
-  wikitext: string,
-  qid: string | null,
-): string {
-  const trimmed = qid?.trim() || null;
-  if (WIKIDATA_NOTE_RE.test(wikitext)) {
-    return trimmed
-      ? wikitext.replace(WIKIDATA_NOTE_RE, `{{Wikidata Infobox|qid=${trimmed}}}\n`)
-      : wikitext.replace(WIKIDATA_NOTE_RE, "");
-  }
-  return trimmed ? `{{Wikidata Infobox|qid=${trimmed}}}\n${wikitext}` : wikitext;
 }
