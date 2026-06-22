@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
@@ -38,8 +38,12 @@ export default function CategoryNode({
   const [children, setChildren] = useState<Subcategory[] | null>(null);
 
   const isActive = activePath.join("/") === path.join("/");
+  const isAncestorOfActive =
+    activePath.length > path.length &&
+    path.every((segment, i) => activePath[i] === segment);
   const expandable = subcats === null || subcats > 0;
   const parent = path.length > 1 ? path[path.length - 2] : null;
+  const rowRef = useRef<HTMLDivElement>(null);
 
   // After a drag-drop move elsewhere invalidates the shared cache, refetch
   // this node's already-expanded children so it reflects the new state.
@@ -55,28 +59,51 @@ export default function CategoryNode({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only refetch on external version bump
   }, [version]);
 
+  async function load() {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await getCategoryChildrenCached(name, locale);
+      setChildren(data.subcategories);
+    } catch {
+      setError(true);
+      setExpanded(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function toggle() {
     if (!expandable) return;
     const next = !expanded;
     setExpanded(next);
     if (next && children === null && !loading) {
-      setLoading(true);
-      setError(false);
-      try {
-        const data = await getCategoryChildrenCached(name, locale);
-        setChildren(data.subcategories);
-      } catch {
-        setError(true);
-        setExpanded(false);
-      } finally {
-        setLoading(false);
-      }
+      await load();
     }
   }
+
+  // Follow navigation from the main content area: auto-expand this node
+  // when it sits on the path to the newly active category.
+  useEffect(() => {
+    if (isAncestorOfActive && !expanded) {
+      setExpanded(true);
+      if (children === null && !loading) load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to navigation, not local expand state
+  }, [isAncestorOfActive]);
+
+  // Scroll the active node into view when it becomes selected via the
+  // main content area (clicking into a subcategory, breadcrumb, etc.).
+  useEffect(() => {
+    if (isActive) {
+      rowRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [isActive]);
 
   return (
     <li>
       <div
+        ref={rowRef}
         draggable={parent != null}
         onDragStart={(e) => {
           if (!parent) return;

@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
 import type { CategoryWikidata } from "@/lib/types";
-import { commonsCategoryUrl } from "@/lib/category";
+import { wikidataNewItemUrl } from "@/lib/category";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 
 export default function WikidataBadge() {
@@ -40,7 +40,7 @@ export default function WikidataBadge() {
   if (!wikidata) {
     return (
       <a
-        href={commonsCategoryUrl(current)}
+        href={wikidataNewItemUrl(current)}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-600"

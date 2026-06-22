@@ -16,3 +16,10 @@ export function commonsCategoryUrl(name: string): string {
   const title = withCategoryPrefix(name).replace(/ /g, "_");
   return `https://commons.wikimedia.org/wiki/${encodeURIComponent(title)}`;
 }
+
+/** Wikidata "create new item" URL pre-filled with the Commons category as a sitelink. */
+export function wikidataNewItemUrl(name: string): string {
+  const title = withCategoryPrefix(name).replace(/ /g, "_");
+  const params = new URLSearchParams({ site: "commonswiki", page: title });
+  return `https://www.wikidata.org/wiki/Special:NewItem?${params.toString()}`;
+}
