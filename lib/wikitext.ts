@@ -371,6 +371,25 @@ export function withMovedCategory(
   return wikitext.slice(0, range.start) + replacement + wikitext.slice(range.end);
 }
 
+/** Remove a `[[Category:Name]]` link from a page's wikitext outright (rather
+ * than replacing it, as withMovedCategory does). Returns null if `category`
+ * isn't linked on the page. */
+export function withRemovedCategory(
+  wikitext: string,
+  category: string,
+): string | null {
+  const range = findCategoryLinkRange(wikitext, category);
+  if (!range) return null;
+
+  let end = range.end;
+  if (wikitext[end] === "\n") end += 1;
+
+  return (wikitext.slice(0, range.start) + wikitext.slice(end)).replace(
+    /\n{3,}/g,
+    "\n\n",
+  );
+}
+
 /** Add a `[[Category:Name]]` link to a page's wikitext (appended at the end,
  * the conventional place for category links on Commons). */
 export function withAddedCategory(wikitext: string, category: string): string {
@@ -392,4 +411,28 @@ export function buildNewCategoryWikitext(
     ? `{{Wikidata Infobox|qid=${wikidataQid}}}\n`
     : "";
   return `${note}[[Category:${parentCategory}]]\n`;
+}
+
+const WIKIDATA_NOTE_RE = /\{\{\s*Wikidata Infobox\s*\|\s*qid\s*=\s*([^}|]+?)\s*\}\}\n?/i;
+
+/** Read the qid out of a category's informational `{{Wikidata Infobox}}`
+ * note, if present — see buildNewCategoryWikitext for what this note is
+ * (and isn't: not a real Wikidata sitelink). */
+export function parseWikidataQid(wikitext: string): string | null {
+  return WIKIDATA_NOTE_RE.exec(wikitext)?.[1]?.trim() ?? null;
+}
+
+/** Set, replace, or (passing `null`) remove the `{{Wikidata Infobox}}` note
+ * on a category page. */
+export function withUpdatedWikidataQid(
+  wikitext: string,
+  qid: string | null,
+): string {
+  const trimmed = qid?.trim() || null;
+  if (WIKIDATA_NOTE_RE.test(wikitext)) {
+    return trimmed
+      ? wikitext.replace(WIKIDATA_NOTE_RE, `{{Wikidata Infobox|qid=${trimmed}}}\n`)
+      : wikitext.replace(WIKIDATA_NOTE_RE, "");
+  }
+  return trimmed ? `{{Wikidata Infobox|qid=${trimmed}}}\n${wikitext}` : wikitext;
 }

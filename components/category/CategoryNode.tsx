@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
-import { overlaySubcategories, syntheticChildrenFor } from "@/lib/pendingChanges";
+import { overlaySubcategories, syntheticChildrenFor, resolveCategoryName } from "@/lib/pendingChanges";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
@@ -56,7 +56,7 @@ export default function CategoryNode({
       Promise.resolve().then(() => active && setChildren(synthetic));
       return;
     }
-    getCategoryChildrenCached(name, locale).then((data) => {
+    getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale).then((data) => {
       if (active) setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
     });
     return () => {
@@ -74,7 +74,7 @@ export default function CategoryNode({
         setChildren(synthetic);
         return;
       }
-      const data = await getCategoryChildrenCached(name, locale);
+      const data = await getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale);
       setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
     } catch {
       setError(true);

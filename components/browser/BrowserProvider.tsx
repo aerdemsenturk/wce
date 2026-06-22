@@ -17,7 +17,12 @@ import type { PendingChange } from "@/lib/pendingChanges";
 import {
   updateFileDescription,
   moveCategoryMembership,
+  removeCategoryMembership,
+  addCategoryMembership,
+  addDepict,
+  removeDepict,
   createCategoryFromSelection,
+  renameCategory,
 } from "@/lib/api";
 
 export interface Toast {
@@ -221,6 +226,28 @@ export default function BrowserProvider({
           await updateFileDescription(change.fileTitle, change.lang, change.newValue);
         } else if (change.type === "move") {
           await moveCategoryMembership(change.pageTitle, change.fromCategory, change.toCategory);
+        } else if (change.type === "removeCategory") {
+          await removeCategoryMembership(change.fileTitle, change.category);
+        } else if (change.type === "addCategory") {
+          await addCategoryMembership(change.fileTitle, change.category);
+        } else if (change.type === "addDepict") {
+          await addDepict(change.fileTitle, change.pageid, change.qid);
+        } else if (change.type === "removeDepict") {
+          await removeDepict(change.fileTitle, change.statementId);
+        } else if (change.type === "rename") {
+          const result = await renameCategory(change.oldName, change.newName, {
+            wikidataQid: change.wikidataQid,
+            parentCategory: change.parentCategory,
+          });
+          if (result.failed.length > 0 || result.wikidataError) {
+            results.push({
+              changeId: change.id,
+              label: change.label,
+              status: "skipped",
+              message: result.wikidataError ?? result.failed.map((f) => f.title).join(", "),
+            });
+            continue;
+          }
         } else {
           const result = await createCategoryFromSelection(
             change.name,

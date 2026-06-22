@@ -46,6 +46,7 @@ export interface Coordinates {
 export interface Depict {
   id: string; // Q-id
   label: string | null;
+  statementId: string; // Wikibase claim GUID, e.g. "M123$xxxxxxxx-..."
 }
 
 export interface FileDetail {

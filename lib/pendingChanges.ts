@@ -3,7 +3,7 @@
 // hits Publish. The overlay functions below let the tree/grid/detail views
 // show the queue's effect before anything is actually written.
 
-import type { CategoryFileInfo, LangText, Subcategory } from "./types";
+import type { CategoryFileInfo, CategoryWikidata, Depict, LangText, Subcategory } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
 
 export interface DescriptionChange {
@@ -40,7 +40,77 @@ export interface CreateCategoryChange {
   label: string;
 }
 
-export type PendingChange = DescriptionChange | MoveChange | CreateCategoryChange;
+export interface RemoveCategoryChange {
+  id: string;
+  type: "removeCategory";
+  fileTitle: string; // "File:Foo.jpg"
+  category: string;
+  label: string;
+}
+
+export interface RenameChange {
+  id: string;
+  type: "rename";
+  oldName: string;
+  newName: string;
+  parentCategory: string | null;
+  wikidataQid?: string;
+  label: string;
+}
+
+export interface AddCategoryChange {
+  id: string;
+  type: "addCategory";
+  fileTitle: string; // "File:Foo.jpg"
+  category: string;
+  label: string;
+}
+
+export interface AddDepictChange {
+  id: string;
+  type: "addDepict";
+  fileTitle: string; // "File:Foo.jpg"
+  pageid: number;
+  qid: string;
+  depictLabel: string | null;
+  label: string;
+}
+
+export interface RemoveDepictChange {
+  id: string;
+  type: "removeDepict";
+  fileTitle: string; // "File:Foo.jpg"
+  statementId: string;
+  label: string;
+}
+
+export type PendingChange =
+  | DescriptionChange
+  | MoveChange
+  | CreateCategoryChange
+  | RemoveCategoryChange
+  | RenameChange
+  | AddCategoryChange
+  | AddDepictChange
+  | RemoveDepictChange;
+
+/** Walks pending renames back to the name the category still has on
+ * Commons, so views can fetch/compare using a name that actually exists
+ * server-side even after the user has renamed it locally. */
+export function resolveCategoryName(category: string, changes: PendingChange[]): string {
+  let result = category;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const change of changes) {
+      if (change.type === "rename" && change.newName === result) {
+        result = change.oldName;
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
 
 /** Subcategories listed under `category`, adjusted for not-yet-published
  * moves and category creations. */
@@ -49,18 +119,19 @@ export function overlaySubcategories(
   base: Subcategory[],
   changes: PendingChange[],
 ): Subcategory[] {
+  const canon = (c: string) => resolveCategoryName(c, changes);
   let result = base;
   for (const change of changes) {
     if (change.type === "move" && change.kind === "category") {
       const movedName = stripCategoryPrefix(change.pageTitle);
-      if (change.fromCategory === category) {
+      if (canon(change.fromCategory) === canon(category)) {
         result = result.filter((s) => s.name !== movedName);
       }
-      if (change.toCategory === category && change.subcat) {
+      if (canon(change.toCategory) === canon(category) && change.subcat) {
         result = [...result.filter((s) => s.name !== change.subcat!.name), change.subcat];
       }
     }
-    if (change.type === "createCategory" && change.parentCategory === category) {
+    if (change.type === "createCategory" && canon(change.parentCategory) === canon(category)) {
       const synthetic: Subcategory = {
         title: withCategoryPrefix(change.name),
         name: change.name,
@@ -69,6 +140,13 @@ export function overlaySubcategories(
         wikidata: change.wikidataQid ? { id: change.wikidataQid, label: null } : null,
       };
       result = [...result.filter((s) => s.name !== change.name), synthetic];
+    }
+    if (change.type === "rename" && change.parentCategory && canon(change.parentCategory) === canon(category)) {
+      result = result.map((s) =>
+        s.name === change.oldName
+          ? { ...s, name: change.newName, title: withCategoryPrefix(change.newName) }
+          : s,
+      );
     }
   }
   return result;
@@ -81,22 +159,23 @@ export function overlayFiles(
   base: CategoryFileInfo[],
   changes: PendingChange[],
 ): CategoryFileInfo[] {
+  const canon = (c: string) => resolveCategoryName(c, changes);
   let result = base;
   for (const change of changes) {
     if (change.type === "move" && change.kind === "file") {
-      if (change.fromCategory === category) {
+      if (canon(change.fromCategory) === canon(category)) {
         result = result.filter((f) => f.title !== change.pageTitle);
       }
-      if (change.toCategory === category && change.file) {
+      if (canon(change.toCategory) === canon(category) && change.file) {
         result = [...result.filter((f) => f.title !== change.file!.title), change.file];
       }
     }
     if (change.type === "createCategory") {
-      if (change.parentCategory === category) {
+      if (canon(change.parentCategory) === canon(category)) {
         const movedTitles = new Set(change.files.map((f) => f.title));
         result = result.filter((f) => !movedTitles.has(f.title));
       }
-      if (change.name === category) {
+      if (canon(change.name) === canon(category)) {
         const existing = new Set(result.map((f) => f.title));
         result = [...result, ...change.files.filter((f) => !existing.has(f.title))];
       }
@@ -112,8 +191,9 @@ export function syntheticChildrenFor(
   category: string,
   changes: PendingChange[],
 ): Subcategory[] | null {
+  const canon = (c: string) => resolveCategoryName(c, changes);
   const exists = changes.some(
-    (c): c is CreateCategoryChange => c.type === "createCategory" && c.name === category,
+    (c): c is CreateCategoryChange => c.type === "createCategory" && canon(c.name) === canon(category),
   );
   return exists ? [] : null;
 }
@@ -124,8 +204,9 @@ export function syntheticFilesFor(
   category: string,
   changes: PendingChange[],
 ): CategoryFileInfo[] | null {
+  const canon = (c: string) => resolveCategoryName(c, changes);
   const change = changes.find(
-    (c): c is CreateCategoryChange => c.type === "createCategory" && c.name === category,
+    (c): c is CreateCategoryChange => c.type === "createCategory" && canon(c.name) === canon(category),
   );
   return change ? change.files : null;
 }
@@ -147,6 +228,27 @@ export function overlayDescriptions(
   return result;
 }
 
+/** A category's Wikidata note, adjusted for a not-yet-published rename that
+ * also changed (or cleared) the note. */
+export function overlayWikidata(
+  category: string,
+  base: CategoryWikidata | null,
+  changes: PendingChange[],
+): CategoryWikidata | null {
+  const canon = (c: string) => resolveCategoryName(c, changes);
+  let result = base;
+  for (const change of changes) {
+    if (
+      change.type === "rename" &&
+      change.wikidataQid !== undefined &&
+      canon(change.newName) === canon(category)
+    ) {
+      result = change.wikidataQid ? { id: change.wikidataQid, label: null } : null;
+    }
+  }
+  return result;
+}
+
 /** A file's visible category list, adjusted for not-yet-published moves. */
 export function overlayCategories(
   fileTitle: string,
@@ -162,6 +264,40 @@ export function overlayCategories(
       const moved = change.files.some((f) => f.title === fileTitle);
       if (moved) {
         result = result.map((c) => (c === change.parentCategory ? change.name : c));
+      }
+    }
+    if (change.type === "removeCategory" && change.fileTitle === fileTitle) {
+      result = result.filter((c) => c !== change.category);
+    }
+    if (change.type === "addCategory" && change.fileTitle === fileTitle) {
+      if (!result.includes(change.category)) result = [...result, change.category];
+    }
+    if (change.type === "rename") {
+      result = result.map((c) => (c === change.oldName ? change.newName : c));
+    }
+  }
+  return result;
+}
+
+/** A file's visible depicts list, adjusted for not-yet-published add/remove
+ * statements. Added depicts carry a synthetic "pending" statement id until
+ * the change is published and the real claim GUID comes back from Commons. */
+export function overlayDepicts(
+  fileTitle: string,
+  base: Depict[],
+  changes: PendingChange[],
+): Depict[] {
+  let result = base;
+  for (const change of changes) {
+    if (change.type === "removeDepict" && change.fileTitle === fileTitle) {
+      result = result.filter((d) => d.statementId !== change.statementId);
+    }
+    if (change.type === "addDepict" && change.fileTitle === fileTitle) {
+      if (!result.some((d) => d.id === change.qid)) {
+        result = [
+          ...result,
+          { id: change.qid, label: change.depictLabel, statementId: "pending" },
+        ];
       }
     }
   }

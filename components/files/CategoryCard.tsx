@@ -1,11 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
 import { setDragPayload } from "@/lib/dnd";
 import { withCategoryPrefix } from "@/lib/category";
+import { getCategoryPreviewThumbsCached } from "@/lib/api";
 
 export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   const t = useTranslations("sidebar");
@@ -13,6 +16,22 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(
     subcat.name,
   );
+  const [previewThumbs, setPreviewThumbs] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void getCategoryPreviewThumbsCached(subcat.name)
+      .then((thumbs) => {
+        if (active) setPreviewThumbs(thumbs);
+      })
+      .catch(() => {
+        if (active) setPreviewThumbs([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [subcat.name]);
 
   return (
     <button
@@ -31,12 +50,36 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={() => selectPath([...path, subcat.name])}
-      className={`group flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
-        isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-border-base"
+      className={`group relative flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
+        isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-amber-200"
       }`}
     >
-      <div className="relative flex aspect-square w-full items-center justify-center bg-amber-50">
-        <FolderIcon />
+      <span className="absolute top-1.5 left-1.5 z-10 grid h-5 w-5 place-items-center rounded border border-amber-200 bg-amber-50 text-amber-600">
+        <FolderIcon width={12} height={12} />
+      </span>
+
+      <div className="grid aspect-square w-full grid-cols-2 gap-1 overflow-hidden rounded-t-lg bg-slate-100 p-1">
+        {previewThumbs.length > 0 ? (
+          previewThumbs.map((thumbUrl, index) => (
+            <div
+              key={index}
+              className="relative overflow-hidden rounded-md bg-slate-200"
+            >
+              <Image
+                src={thumbUrl}
+                alt={`Preview ${index + 1}`}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ))
+        ) : (
+          <div className="relative flex aspect-square w-full items-center justify-center rounded-md bg-amber-50">
+            <FolderIcon className="text-amber-400" width={32} height={32} />
+          </div>
+        )}
+
         {subcat.wikidata && (
           <span
             title={subcat.wikidata.label ?? subcat.wikidata.id}
@@ -71,15 +114,23 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   );
 }
 
-function FolderIcon() {
+function FolderIcon({
+  width,
+  height,
+  className,
+}: {
+  width: number;
+  height: number;
+  className?: string;
+}) {
   return (
     <svg
-      width="32"
-      height="32"
+      width={width}
+      height={height}
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden
-      className="text-amber-400"
+      className={className}
     >
       <path
         d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"

@@ -7,7 +7,12 @@ import {
   getCategoryChildrenCached,
   fetchSearchFiles,
 } from "@/lib/api";
-import { overlaySubcategories, overlayFiles, syntheticFilesFor } from "@/lib/pendingChanges";
+import {
+  overlaySubcategories,
+  overlayFiles,
+  syntheticFilesFor,
+  resolveCategoryName,
+} from "@/lib/pendingChanges";
 import type { CategoryFileInfo, Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import CategoryCard from "./CategoryCard";
@@ -54,7 +59,10 @@ export default function FileGrid() {
         return;
       }
       try {
-        const data = await getCategoryChildrenCached(current, locale);
+        const data = await getCategoryChildrenCached(
+          resolveCategoryName(current, pendingChanges),
+          locale,
+        );
         if (active) {
           setSubcategories(overlaySubcategories(current, data.subcategories, pendingChanges));
         }
@@ -85,9 +93,10 @@ export default function FileGrid() {
           data = await fetchSearchFiles(search, current, locale);
         } else {
           const synthetic = syntheticFilesFor(current!, pendingChanges);
+          const fetchName = resolveCategoryName(current!, pendingChanges);
           data =
             synthetic ??
-            overlayFiles(current!, await getCategoryGridCached(current!, locale), pendingChanges);
+            overlayFiles(current!, await getCategoryGridCached(fetchName, locale), pendingChanges);
         }
         if (active) setFiles(data);
       } catch {
@@ -144,6 +153,7 @@ export default function FileGrid() {
           count={files?.length ?? 0}
         />
       )}
+
       <FilterBar
         counts={counts}
         filter={filter}
@@ -160,11 +170,13 @@ export default function FileGrid() {
         <div
           className="grid gap-3"
           style={{
-            // Container-responsive: cards never shrink below 160px; instead the
-            // column count drops (and items wrap) as the main area narrows.
-            // Capped at 6 columns via the 100%/6 minimum-track trick.
+            // Container-responsive: at most 8 columns (100%/8 floor keeps
+            // each track from exceeding 1/8 width), stepping down through
+            // 160px-wide cards as the main area narrows, but never below 2
+            // columns (the 100%/2 ceiling keeps a track from ever exceeding
+            // half the container, so two always fit).
             gridTemplateColumns:
-              "repeat(auto-fill, minmax(max(160px, 100% / 6), 1fr))",
+              "repeat(auto-fill, minmax(max(100% / 8, min(160px, 100% / 2)), 1fr))",
           }}
         >
           {subcategories.map((subcat) => (

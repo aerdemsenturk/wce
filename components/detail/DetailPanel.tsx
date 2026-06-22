@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getFileDetailCached } from "@/lib/api";
-import { overlayDescriptions, overlayCategories } from "@/lib/pendingChanges";
+import { overlayDescriptions, overlayCategories, overlayDepicts } from "@/lib/pendingChanges";
 import type { FileDetail } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import ResizablePanel from "@/components/layout/ResizablePanel";
@@ -35,11 +35,13 @@ function DetailContent({ title }: { title: string }) {
   const t = useTranslations("detail");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { selectFile, setRoot, pendingChanges } = useBrowser();
+  const { selectFile, setRoot, pendingChanges, addChange } = useBrowser();
 
   const [detail, setDetail] = useState<FileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [categoryDraft, setCategoryDraft] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -53,6 +55,7 @@ function DetailContent({ title }: { title: string }) {
             ...data,
             descriptions: overlayDescriptions(title, data.descriptions, pendingChanges),
             categories: overlayCategories(title, data.categories, pendingChanges),
+            depicts: overlayDepicts(title, data.depicts, pendingChanges),
           });
         }
       } catch {
@@ -140,25 +143,83 @@ function DetailContent({ title }: { title: string }) {
             </Field>
 
             <Field label={t("categories")}>
-              {detail.categories.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {detail.categories.map((cat) => (
+              <div className="flex flex-wrap gap-1.5">
+                {detail.categories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="group flex items-center gap-1 rounded-full bg-slate-100 pl-2 pr-1 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
+                  >
                     <button
-                      key={cat}
                       type="button"
                       onClick={() => {
                         setRoot(cat);
                         selectFile(null);
                       }}
-                      className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
                     >
                       {cat}
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <Empty />
-              )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        addChange({
+                          id: crypto.randomUUID(),
+                          type: "removeCategory",
+                          fileTitle: title,
+                          category: cat,
+                          label: t("removeCategoryLabel", {
+                            name: detail.name,
+                            category: cat,
+                          }),
+                        })
+                      }
+                      aria-label={t("removeCategory")}
+                      className="grid h-3.5 w-3.5 place-items-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700"
+                    >
+                      <XIcon />
+                    </button>
+                  </span>
+                ))}
+
+                {addingCategory ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const next = categoryDraft.trim();
+                      if (next && !detail.categories.includes(next)) {
+                        addChange({
+                          id: crypto.randomUUID(),
+                          type: "addCategory",
+                          fileTitle: title,
+                          category: next,
+                          label: t("addCategoryLabel", { name: detail.name, category: next }),
+                        });
+                      }
+                      setCategoryDraft("");
+                      setAddingCategory(false);
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={categoryDraft}
+                      onChange={(e) => setCategoryDraft(e.target.value)}
+                      onBlur={() => {
+                        setCategoryDraft("");
+                        setAddingCategory(false);
+                      }}
+                      placeholder={t("categoryNamePlaceholder")}
+                      className="rounded-full border border-border-base px-2 py-0.5 text-xs text-slate-700 outline-none focus:border-slate-400"
+                    />
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingCategory(true)}
+                    className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                  >
+                    {t("addCategory")}
+                  </button>
+                )}
+              </div>
             </Field>
 
             <Field label={t("location")}>
@@ -170,6 +231,8 @@ function DetailContent({ title }: { title: string }) {
 
             <Field label={t("depicts")}>
               <DepictsList
+                title={title}
+                pageid={detail.pageid}
                 depicts={detail.depicts}
                 structuredDataUrl={`https://commons.wikimedia.org/wiki/Special:EntityPage/${detail.mediaId}`}
               />
@@ -205,6 +268,19 @@ function Text({ value }: { value: string | null }) {
 
 function Empty() {
   return <span className="text-sm text-slate-300">—</span>;
+}
+
+function XIcon() {
+  return (
+    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden>
+      <path
+        d="M1 1l6 6M7 1l-6 6"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 function CloseIcon() {

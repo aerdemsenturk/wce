@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
-import { syntheticChildrenFor } from "@/lib/pendingChanges";
+import { syntheticChildrenFor, overlayWikidata, resolveCategoryName } from "@/lib/pendingChanges";
 import type { CategoryWikidata } from "@/lib/types";
 import { wikidataNewItemUrl } from "@/lib/category";
 import { useBrowser } from "@/components/browser/BrowserProvider";
@@ -28,9 +28,12 @@ export default function WikidataBadge() {
         return;
       }
       try {
-        const data = await getCategoryChildrenCached(current, locale);
+        const data = await getCategoryChildrenCached(
+          resolveCategoryName(current, pendingChanges),
+          locale,
+        );
         if (active) {
-          setWikidata(data.wikidata);
+          setWikidata(overlayWikidata(current, data.wikidata, pendingChanges));
           setLoaded(true);
         }
       } catch {

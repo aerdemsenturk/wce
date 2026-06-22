@@ -48,6 +48,8 @@
     "open": "Aç",
     "close": "Kapat",
     "edit": "Düzenle",
+    "editDescriptionTitle": "Açıklamayı düzenle",
+    "editDescriptionTitleLang": "Açıklamayı düzenle ({lang})",
     "save": "Kaydet",
     "cancel": "Vazgeç",
     "descriptionChangeLabel": "{name}: açıklama güncellendi",
@@ -56,11 +58,24 @@
     "author": "Yazar",
     "license": "Lisans",
     "categories": "Kategoriler",
+    "removeCategory": "Kategoriden çıkar",
+    "removeCategoryLabel": "{name}: {category} kategorisinden çıkarıldı",
+    "addCategory": "+ kategori",
+    "addCategoryLabel": "{name}: {category} kategorisine eklendi",
+    "categoryNamePlaceholder": "Kategori adı",
     "location": "Konum",
     "depicts": "Konu (Depicts)",
     "noLocation": "Konum verisi yok",
     "noDepicts": "Konu verisi yok",
-    "addOnCommons": "Commons'ta ekle →"
+    "addOnCommons": "Commons'ta ekle →",
+    "addDepict": "+ konu",
+    "removeDepict": "Konudan çıkar",
+    "addDepictLabel": "{name}: {depict} konusu eklendi",
+    "removeDepictLabel": "{name}: {depict} konusu kaldırıldı",
+    "addDepictTitle": "Konu (Depicts) ekle",
+    "depictSearchPlaceholder": "Wikidata öğesi ara…",
+    "searching": "Aranıyor…",
+    "noResults": "Sonuç bulunamadı"
   },
   "search": {
     "resultsFor": "“{query}” için sonuçlar",
@@ -79,12 +94,14 @@
   },
   "rename": {
     "edit": "Yeniden adlandır",
+    "modalTitle": "Kategoriyi düzenle",
+    "nameLabel": "Kategori adı",
+    "qidLabel": "Wikidata maddesi (opsiyonel)",
+    "qidPlaceholder": "ör. Q12345",
+    "qidNote": "Bu sadece bilgi notu olarak eklenir; gerçek bir Wikidata bağlantısı (sitelink) oluşturmaz.",
     "save": "Kaydet",
-    "saving": "Kaydediliyor…",
     "cancel": "Vazgeç",
-    "success": "{name} olarak yeniden adlandırıldı",
-    "partialSuccess": "Yeniden adlandırıldı — {moved} dosya taşındı, {failed} dosya taşınamadı",
-    "error": "Kategori yeniden adlandırılamadı"
+    "renameLabel": "{oldName} → {newName} olarak yeniden adlandırılacak"
   },
   "merge": {
     "selectedCount": "{count, plural, one {# öge seçildi} other {# öge seçildi}}",
@@ -105,6 +122,9 @@
   "publish": {
     "title": "Yayınlama sonucu",
     "skipped": "çakıştı, atlandı",
-    "close": "Kapat"
+    "close": "Kapat",
+    "confirmTitle": "{count} değişikliği yayınla",
+    "confirmConfirm": "Yayınla",
+    "confirmCancel": "Vazgeç"
   }
 }

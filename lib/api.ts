@@ -38,6 +38,32 @@ export async function fetchCategoryGrid(
   return data.files;
 }
 
+export async function fetchCategoryPreviewThumbs(
+  category: string,
+): Promise<string[]> {
+  const params = new URLSearchParams({ op: "preview", category });
+  const res = await fetch(`/api/commons/category?${params}`);
+  if (!res.ok) throw new Error(`preview ${res.status}`);
+  const data = (await res.json()) as { thumbs: string[] };
+  return data.thumbs;
+}
+
+const previewThumbsCache = new Map<string, Promise<string[]>>();
+
+export function getCategoryPreviewThumbsCached(
+  category: string,
+): Promise<string[]> {
+  let entry = previewThumbsCache.get(category);
+  if (!entry) {
+    entry = fetchCategoryPreviewThumbs(category).catch((err) => {
+      previewThumbsCache.delete(category);
+      throw err;
+    });
+    previewThumbsCache.set(category, entry);
+  }
+  return entry;
+}
+
 // Module-level cache so re-expanding a node or revisiting a category
 // doesn't refetch within the same session.
 const childrenCache = new Map<string, Promise<CategoryChildren>>();
@@ -107,6 +133,57 @@ export async function updateFileDescription(
   }
 }
 
+/** Add a P180 depicts statement to a file (queued write path). */
+export async function addDepict(
+  title: string,
+  pageid: number,
+  qid: string,
+): Promise<{ statementId: string }> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "addDepict", pageid, qid }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `addDepict ${res.status}`);
+  }
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+  return res.json();
+}
+
+/** Remove a depicts statement from a file by its claim GUID (queued write path). */
+export async function removeDepict(title: string, statementId: string): Promise<void> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "removeDepict", statementId }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `removeDepict ${res.status}`);
+  }
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+}
+
+/** Search Wikidata items by label, for the add-depict autocomplete. */
+export async function searchWikidataItems(
+  query: string,
+  lang: string,
+): Promise<{ id: string; label: string; description: string | null }[]> {
+  const params = new URLSearchParams({ q: query, lang });
+  const res = await fetch(`/api/wikidata/search?${params}`);
+  if (!res.ok) throw new Error(`wikidataSearch ${res.status}`);
+  const data = (await res.json()) as {
+    results: { id: string; label: string; description: string | null }[];
+  };
+  return data.results;
+}
+
 /** Move a file or subcategory's parent category (drag-and-drop write path). */
 export async function moveCategoryMembership(
   pageTitle: string,
@@ -126,21 +203,69 @@ export async function moveCategoryMembership(
   invalidateCategory(toCategory);
 }
 
+/** Remove a file's category link outright (queued write — see the
+ * `removeCategory` pending-change type in lib/pendingChanges.ts). */
+export async function removeCategoryMembership(
+  pageTitle: string,
+  category: string,
+): Promise<void> {
+  const res = await fetch("/api/commons/category", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "removeCategory", pageTitle, category }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `removeCategory ${res.status}`);
+  }
+  invalidateCategory(category);
+}
+
+/** Add a file's category link (queued write — see the `addCategory`
+ * pending-change type in lib/pendingChanges.ts). */
+export async function addCategoryMembership(
+  pageTitle: string,
+  category: string,
+): Promise<void> {
+  const res = await fetch("/api/commons/category", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "addCategory", pageTitle, category }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `addCategory ${res.status}`);
+  }
+  invalidateCategory(category);
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${pageTitle}`)) fileDetailCache.delete(key);
+  }
+}
+
 export interface RenameCategoryResult {
   moved: string[];
   failed: { title: string; error: string }[];
+  wikidataError?: string;
 }
 
-/** Rename a category page and recategorize its direct files (breadcrumb edit). */
+/** Rename a category page and recategorize its direct files, optionally
+ * setting/clearing its Wikidata note in the same request (edit-category
+ * modal). Pass `wikidataQid: null` to clear the note, or omit it to leave
+ * the note untouched. */
 export async function renameCategory(
   oldName: string,
   newName: string,
-  parentCategory?: string | null,
+  options?: { wikidataQid?: string | null; parentCategory?: string | null },
 ): Promise<RenameCategoryResult> {
   const res = await fetch("/api/commons/category", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ op: "rename", oldName, newName }),
+    body: JSON.stringify({
+      op: "rename",
+      oldName,
+      newName,
+      wikidataQid: options?.wikidataQid,
+    }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -148,8 +273,20 @@ export async function renameCategory(
   }
   invalidateCategory(oldName);
   invalidateCategory(newName);
-  if (parentCategory) invalidateCategory(parentCategory);
+  if (options?.parentCategory) invalidateCategory(options.parentCategory);
   return res.json();
+}
+
+/** Read a category's informational Wikidata note (if any), for prefilling
+ * the edit-category modal. */
+export async function fetchCategoryWikidataNote(
+  category: string,
+): Promise<string | null> {
+  const params = new URLSearchParams({ op: "wikidataNote", category });
+  const res = await fetch(`/api/commons/category?${params}`);
+  if (!res.ok) throw new Error(`wikidataNote ${res.status}`);
+  const data = (await res.json()) as { qid: string | null };
+  return data.qid;
 }
 
 export interface CreateCategoryResult {
@@ -193,6 +330,7 @@ export function invalidateCategory(category: string): void {
   for (const key of gridCache.keys()) {
     if (key.endsWith(`:${category}`)) gridCache.delete(key);
   }
+  previewThumbsCache.delete(category);
 }
 
 export async function fetchSearchFiles(

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
 import PublishResultsModal from "@/components/browser/PublishResultsModal";
 import LanguageToggle from "./LanguageToggle";
 import SearchBox from "./SearchBox";
@@ -19,6 +21,7 @@ export default function Header() {
     publishResults,
     clearPublishResults,
   } = useBrowser();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border-base bg-panel px-4">
@@ -58,7 +61,7 @@ export default function Header() {
         </button>
         <button
           type="button"
-          onClick={() => void publishAll()}
+          onClick={() => setConfirmOpen(true)}
           disabled={pendingChanges.length === 0 || publishing}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
         >
@@ -66,6 +69,17 @@ export default function Header() {
         </button>
         <LanguageToggle />
       </div>
+
+      {confirmOpen && (
+        <PublishConfirmModal
+          changes={pendingChanges}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            void publishAll();
+          }}
+        />
+      )}
 
       {publishResults && (
         <PublishResultsModal results={publishResults} onClose={clearPublishResults} />

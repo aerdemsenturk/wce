@@ -14,7 +14,11 @@ import {
   stripHtml,
   withUpdatedDescription,
   withMovedCategory,
+  withRemovedCategory,
+  withAddedCategory,
   buildNewCategoryWikitext,
+  parseWikidataQid,
+  withUpdatedWikidataQid,
 } from "./wikitext";
 
 export { stripCategoryPrefix, withCategoryPrefix };
@@ -268,6 +272,7 @@ interface DepictSnak {
   datavalue?: { value?: { id?: string } };
 }
 interface DepictStatement {
+  id?: string; // claim GUID
   mainsnak?: DepictSnak;
   rank?: string;
 }
@@ -293,16 +298,86 @@ async function getDepicts(pageid: number, lang: string): Promise<Depict[]> {
   const statements = entity?.statements ?? entity?.claims;
   const p180 = statements?.P180 ?? [];
 
-  const ids: string[] = [];
+  const entries: { id: string; statementId: string }[] = [];
   for (const st of p180) {
     if (st.mainsnak?.snaktype !== "value") continue;
     const id = st.mainsnak.datavalue?.value?.id;
-    if (id && !ids.includes(id)) ids.push(id);
+    if (id && st.id && !entries.some((e) => e.id === id)) {
+      entries.push({ id, statementId: st.id });
+    }
   }
-  if (ids.length === 0) return [];
+  if (entries.length === 0) return [];
 
-  const labels = await fetchWikidataLabels(ids, lang);
-  return ids.map((id) => ({ id, label: labels.get(id) ?? null }));
+  const labels = await fetchWikidataLabels(entries.map((e) => e.id), lang);
+  return entries.map((e) => ({
+    id: e.id,
+    label: labels.get(e.id) ?? null,
+    statementId: e.statementId,
+  }));
+}
+
+/** Add a P180 (depicts) claim to a file's Structured Data (M-id). */
+export async function addDepict(
+  pageid: number,
+  qid: string,
+): Promise<{ statementId: string }> {
+  const token = await getCsrfToken();
+  const value = JSON.stringify({
+    "entity-type": "item",
+    "numeric-id": Number(qid.slice(1)),
+    id: qid,
+  });
+  const data = (await apiPost(COMMONS_API, {
+    action: "wbcreateclaim",
+    entity: `M${pageid}`,
+    property: "P180",
+    snaktype: "value",
+    value,
+    token,
+  })) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
+
+  if (data.error) {
+    throw new Error(data.error.info ?? data.error.code ?? "Could not add depicts statement");
+  }
+  const statementId = data.claim?.id;
+  if (!statementId) throw new Error("Could not add depicts statement");
+  return { statementId };
+}
+
+/** Remove a depicts (or any) Wikibase claim by its statement GUID. */
+export async function removeDepict(statementId: string): Promise<void> {
+  const token = await getCsrfToken();
+  const data = (await apiPost(COMMONS_API, {
+    action: "wbremoveclaims",
+    claim: statementId,
+    token,
+  })) as { error?: { code?: string; info?: string } };
+
+  if (data.error) {
+    throw new Error(data.error.info ?? data.error.code ?? "Could not remove depicts statement");
+  }
+}
+
+/** Search Wikidata items by label, for the add-depict autocomplete. */
+export async function searchWikidataItems(
+  query: string,
+  lang: string,
+): Promise<{ id: string; label: string; description: string | null }[]> {
+  const data = (await apiGet(WIKIDATA_API, {
+    action: "wbsearchentities",
+    search: query,
+    language: lang,
+    type: "item",
+    limit: 8,
+  })) as {
+    search?: { id: string; label?: string; description?: string }[];
+  };
+
+  return (data.search ?? []).map((r) => ({
+    id: r.id,
+    label: r.label ?? r.id,
+    description: r.description ?? null,
+  }));
 }
 
 /** Everything the sidebar needs to render one category's children. */
@@ -483,6 +558,36 @@ export async function getCategoryGrid(
   } while (cont && files.length < GRID_MAX_FILES);
 
   return files;
+}
+
+const PREVIEW_THUMB_LIMIT = 4;
+
+/**
+ * Thumbnail URLs only, for the small preview grid on a category card.
+ * Deliberately skips extmetadata (descriptions/license/etc.) — the full
+ * `getCategoryGrid` payload is overkill when only `thumbUrl` is shown.
+ */
+export async function getCategoryPreviewThumbs(
+  category: string,
+): Promise<string[]> {
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      generator: "categorymembers",
+      gcmtitle: withCategoryPrefix(category),
+      gcmtype: "file",
+      gcmlimit: PREVIEW_THUMB_LIMIT,
+      prop: "imageinfo",
+      iiprop: "url",
+      iiurlwidth: 320,
+    },
+    { noStore: true },
+  )) as { query?: { pages?: ImageInfoPage[] } };
+
+  return (data.query?.pages ?? [])
+    .map((page) => page.imageinfo?.[0]?.thumburl)
+    .filter((url): url is string => Boolean(url));
 }
 
 /**
@@ -780,6 +885,45 @@ export async function moveCategoryMembership(
   );
 }
 
+/** Add a `[[Category:X]]` link to a page that isn't already categorized
+ * under it. Throws if the link is already present. */
+export async function addCategoryMembership(
+  pageTitle: string,
+  category: string,
+): Promise<void> {
+  const page = await fetchPageWikitext(pageTitle);
+  if (!page) throw new Error("Page not found");
+
+  if (withRemovedCategory(page.wikitext, category) != null) {
+    throw new Error(`Page is already categorized under "${category}"`);
+  }
+
+  const updated = withAddedCategory(page.wikitext, category);
+  await postEdit(pageTitle, updated, `Add to Category:${category} via WCE`, page.timestamp);
+}
+
+/** Remove a page's `[[Category:X]]` link outright (rather than moving it to
+ * another category, as moveCategoryMembership does). */
+export async function removeCategoryMembership(
+  pageTitle: string,
+  category: string,
+): Promise<void> {
+  const page = await fetchPageWikitext(pageTitle);
+  if (!page) throw new Error("Page not found");
+
+  const updated = withRemovedCategory(page.wikitext, category);
+  if (updated == null) {
+    throw new Error(`Page isn't categorized under "${category}"`);
+  }
+
+  await postEdit(
+    pageTitle,
+    updated,
+    `Remove from Category:${category} via WCE`,
+    page.timestamp,
+  );
+}
+
 export interface CreateCategoryResult {
   moved: string[];
   failed: { title: string; error: string }[];
@@ -832,6 +976,31 @@ export async function createCategoryFromSelection(
   }
 
   return { moved, failed };
+}
+
+/** Read the informational Wikidata note (if any) from a category page's
+ * wikitext — distinct from the real sitelink id surfaced by
+ * getCategoryChildren()'s pageprops lookup. */
+export async function getCategoryWikidataNote(
+  category: string,
+): Promise<string | null> {
+  const page = await fetchPageWikitext(withCategoryPrefix(category));
+  return page ? parseWikidataQid(page.wikitext) : null;
+}
+
+/** Set or clear the `{{Wikidata Infobox}}` note on a category page. */
+export async function updateCategoryWikidataNote(
+  category: string,
+  qid: string | null,
+): Promise<void> {
+  const title = withCategoryPrefix(category);
+  const page = await fetchPageWikitext(title);
+  if (!page) throw new Error("Category not found");
+
+  const updated = withUpdatedWikidataQid(page.wikitext, qid);
+  if (updated === page.wikitext) return;
+
+  await postEdit(title, updated, "Update Wikidata note via WCE", page.timestamp);
 }
 
 interface MoveResponse {

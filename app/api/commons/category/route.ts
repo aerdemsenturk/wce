@@ -1,11 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  addCategoryMembership,
   createCategoryFromSelection,
   getCategoryChildren,
   getCategoryFiles,
   getCategoryGrid,
+  getCategoryPreviewThumbs,
+  getCategoryWikidataNote,
   moveCategoryMembership,
+  removeCategoryMembership,
   renameCategory,
+  updateCategoryWikidataNote,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
 
@@ -39,6 +44,14 @@ export async function GET(request: NextRequest) {
       const files = await getCategoryGrid(category, lang);
       return NextResponse.json({ category, files });
     }
+    if (op === "preview") {
+      const thumbs = await getCategoryPreviewThumbs(category);
+      return NextResponse.json({ category, thumbs });
+    }
+    if (op === "wikidataNote") {
+      const qid = await getCategoryWikidataNote(category);
+      return NextResponse.json({ category, qid });
+    }
     return NextResponse.json({ error: `Unknown op '${op}'` }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream error";
@@ -58,9 +71,37 @@ export async function PATCH(request: NextRequest) {
     toCategory?: string;
     oldName?: string;
     newName?: string;
+    category?: string;
+    wikidataQid?: string | null;
   } | null;
 
   try {
+    if (body?.op === "removeCategory") {
+      const pageTitle = body.pageTitle?.trim();
+      const category = body.category?.trim();
+      if (!pageTitle || !category) {
+        return NextResponse.json(
+          { error: "Missing 'pageTitle' or 'category'" },
+          { status: 400 },
+        );
+      }
+      await removeCategoryMembership(pageTitle, category);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body?.op === "addCategory") {
+      const pageTitle = body.pageTitle?.trim();
+      const category = body.category?.trim();
+      if (!pageTitle || !category) {
+        return NextResponse.json(
+          { error: "Missing 'pageTitle' or 'category'" },
+          { status: 400 },
+        );
+      }
+      await addCategoryMembership(pageTitle, category);
+      return NextResponse.json({ ok: true });
+    }
+
     if (body?.op === "rename") {
       const oldName = body.oldName?.trim();
       const newName = body.newName?.trim();
@@ -71,7 +112,17 @@ export async function PATCH(request: NextRequest) {
         );
       }
       const result = await renameCategory(oldName, newName);
-      return NextResponse.json(result);
+
+      let wikidataError: string | undefined;
+      if (body.wikidataQid !== undefined) {
+        try {
+          await updateCategoryWikidataNote(newName, body.wikidataQid?.trim() || null);
+        } catch (err) {
+          wikidataError = err instanceof Error ? err.message : "Wikidata update failed";
+        }
+      }
+
+      return NextResponse.json({ ...result, wikidataError });
     }
 
     const pageTitle = body?.pageTitle?.trim();
