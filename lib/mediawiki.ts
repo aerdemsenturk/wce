@@ -625,6 +625,35 @@ export async function searchFiles(
   return pages.map(toCategoryFileInfo);
 }
 
+interface CategorySearchPage {
+  title: string;
+  index?: number;
+  categoryinfo?: CategoryInfo;
+}
+
+/** Instant-search existing Commons categories by title, for the
+ * add-category autocomplete (file detail panel, "+ kategori"). */
+export async function searchCategories(
+  query: string,
+): Promise<{ name: string; files: number | null }[]> {
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    generator: "search",
+    gsrsearch: `intitle:${query}`,
+    gsrnamespace: 14, // Category namespace
+    gsrlimit: 8,
+    prop: "categoryinfo",
+  })) as { query?: { pages?: CategorySearchPage[] } };
+
+  const pages = [...(data.query?.pages ?? [])].sort(
+    (a, b) => (a.index ?? 0) - (b.index ?? 0),
+  );
+  return pages.map((page) => ({
+    name: stripCategoryPrefix(page.title),
+    files: page.categoryinfo?.files ?? null,
+  }));
+}
+
 /** List files directly contained in a category. */
 export async function getCategoryFiles(
   category: string,

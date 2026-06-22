@@ -12,6 +12,7 @@ import LicenseBadge from "@/components/ui/LicenseBadge";
 import DescriptionField from "./DescriptionField";
 import LocationSection from "./LocationSection";
 import DepictsList from "./DepictsList";
+import AddFileCategoryModal from "./AddFileCategoryModal";
 
 export default function DetailPanel() {
   const { selectedFile } = useBrowser();
@@ -35,13 +36,12 @@ function DetailContent({ title }: { title: string }) {
   const t = useTranslations("detail");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { selectFile, setRoot, pendingChanges, addChange } = useBrowser();
+  const { selectFile, setRoot, current, pendingChanges, addChange } = useBrowser();
 
   const [detail, setDetail] = useState<FileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
-  const [categoryDraft, setCategoryDraft] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -180,47 +180,25 @@ function DetailContent({ title }: { title: string }) {
                   </span>
                 ))}
 
-                {addingCategory ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const next = categoryDraft.trim();
-                      if (next && !detail.categories.includes(next)) {
-                        addChange({
-                          id: crypto.randomUUID(),
-                          type: "addCategory",
-                          fileTitle: title,
-                          category: next,
-                          label: t("addCategoryLabel", { name: detail.name, category: next }),
-                        });
-                      }
-                      setCategoryDraft("");
-                      setAddingCategory(false);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      value={categoryDraft}
-                      onChange={(e) => setCategoryDraft(e.target.value)}
-                      onBlur={() => {
-                        setCategoryDraft("");
-                        setAddingCategory(false);
-                      }}
-                      placeholder={t("categoryNamePlaceholder")}
-                      className="rounded-full border border-border-base px-2 py-0.5 text-xs text-slate-700 outline-none focus:border-slate-400"
-                    />
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAddingCategory(true)}
-                    className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
-                  >
-                    {t("addCategory")}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setAddingCategory(true)}
+                  className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                >
+                  {t("addCategory")}
+                </button>
               </div>
             </Field>
+
+            {addingCategory && (
+              <AddFileCategoryModal
+                fileTitle={title}
+                fileName={detail.name}
+                existingCategories={detail.categories}
+                defaultParent={current}
+                onClose={() => setAddingCategory(false)}
+              />
+            )}
 
             <Field label={t("location")}>
               <LocationSection

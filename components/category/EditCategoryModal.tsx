@@ -6,6 +6,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import { fetchCategoryWikidataNote } from "@/lib/api";
 import Modal, { ModalActions } from "@/components/ui/Modal";
 import FormField, { formFieldInputClassName } from "@/components/ui/FormField";
+import WikidataPicker, { type WikidataPickerValue } from "@/components/ui/WikidataPicker";
 
 export default function EditCategoryModal({
   category,
@@ -20,13 +21,13 @@ export default function EditCategoryModal({
   const { addChange, renameCurrent } = useBrowser();
 
   const [name, setName] = useState(category);
-  const [qid, setQid] = useState("");
+  const [wikidata, setWikidata] = useState<WikidataPickerValue | null>(null);
 
   useEffect(() => {
     let active = true;
     fetchCategoryWikidataNote(category)
-      .then((note) => {
-        if (active) setQid(note ?? "");
+      .then((qid) => {
+        if (active) setWikidata(qid ? { id: qid, label: null } : null);
       })
       .catch(() => {});
     return () => {
@@ -43,7 +44,7 @@ export default function EditCategoryModal({
       oldName: category,
       newName,
       parentCategory,
-      wikidataQid: qid.trim(),
+      wikidataQid: wikidata?.id ?? "",
       label: t("renameLabel", { oldName: category, newName }),
     });
     if (newName !== category) renameCurrent(newName);
@@ -74,12 +75,7 @@ export default function EditCategoryModal({
       </FormField>
 
       <FormField label={t("qidLabel")} note={t("qidNote")}>
-        <input
-          value={qid}
-          onChange={(e) => setQid(e.target.value)}
-          placeholder={t("qidPlaceholder")}
-          className={formFieldInputClassName}
-        />
+        <WikidataPicker value={wikidata} onChange={setWikidata} />
       </FormField>
     </Modal>
   );

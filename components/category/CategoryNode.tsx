@@ -9,6 +9,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
 import { setDragPayload } from "@/lib/dnd";
 import { withCategoryPrefix } from "@/lib/category";
+import AddCategoryModal from "./AddCategoryModal";
 
 interface CategoryNodeProps {
   name: string;
@@ -37,6 +38,7 @@ export default function CategoryNode({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [children, setChildren] = useState<Subcategory[] | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const isActive = activePath.join("/") === path.join("/");
   const isAncestorOfActive =
@@ -168,7 +170,26 @@ export default function CategoryNode({
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAddOpen(true);
+          }}
+          aria-label={t("addSubcategory")}
+          title={t("addSubcategory")}
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded ${
+            isActive ? "hover:bg-white/20" : "hover:bg-slate-200"
+          }`}
+        >
+          <PlusIcon />
+        </button>
       </div>
+
+      {addOpen && (
+        <AddCategoryModal parentCategory={name} onClose={() => setAddOpen(false)} />
+      )}
 
       {expanded && (
         <ul>
@@ -201,6 +222,19 @@ export default function CategoryNode({
         </ul>
       )}
     </li>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M6 2.5V9.5M2.5 6H9.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 

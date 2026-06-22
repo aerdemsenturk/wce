@@ -20,7 +20,8 @@
     "loading": "Yükleniyor…",
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
     "subcatCount": "{count, plural, =0 {alt kategori yok} one {# alt kategori} other {# alt kategori}}",
-    "noWikidata": "Wikidata bağlantısı yok"
+    "noWikidata": "Wikidata bağlantısı yok",
+    "addSubcategory": "Alt kategori ekle"
   },
   "filters": {
     "all": "Tümü",
@@ -62,7 +63,10 @@
     "removeCategoryLabel": "{name}: {category} kategorisinden çıkarıldı",
     "addCategory": "+ kategori",
     "addCategoryLabel": "{name}: {category} kategorisine eklendi",
-    "categoryNamePlaceholder": "Kategori adı",
+    "addCategoryTitle": "Kategori ekle",
+    "createNewCategory": "+ Yeni kategori oluştur",
+    "backToSearch": "← Var olan kategoriyi ara",
+    "parentCategoryLabel": "Üst kategori",
     "location": "Konum",
     "depicts": "Konu (Depicts)",
     "noLocation": "Konum verisi yok",
@@ -86,7 +90,12 @@
     "error": "Bir hata oluştu",
     "retry": "Tekrar dene",
     "loading": "Yükleniyor…",
-    "newTab": "yeni sekmede açılır"
+    "newTab": "yeni sekmede açılır",
+    "searching": "Aranıyor…",
+    "noResults": "Sonuç bulunamadı",
+    "clearSelection": "Seçimi temizle",
+    "wikidataSearchPlaceholder": "Wikidata öğesi ara…",
+    "categorySearchPlaceholder": "Kategori ara…"
   },
   "dnd": {
     "moveQueued": "{target} kategorisine taşınacak (yayınlanmadı)",
@@ -97,11 +106,21 @@
     "modalTitle": "Kategoriyi düzenle",
     "nameLabel": "Kategori adı",
     "qidLabel": "Wikidata maddesi (opsiyonel)",
-    "qidPlaceholder": "ör. Q12345",
     "qidNote": "Yayınlandığında kategori sayfası ile bu Wikidata maddesi arasında gerçek bir bağlantı (sitelink) kurulur.",
-    "save": "Kaydet",
-    "cancel": "Vazgeç",
+    "save": "Güncelle",
+    "cancel": "İptal et",
     "renameLabel": "{oldName} → {newName} olarak yeniden adlandırılacak"
+  },
+  "newCategory": {
+    "modalTitle": "Yeni kategori ekle",
+    "nameLabel": "Kategori adı",
+    "namePlaceholder": "ör. Likya Yolu",
+    "qidLabel": "Wikidata maddesi (opsiyonel)",
+    "qidNote": "Yayınlandığında kategori sayfası ile bu Wikidata maddesi arasında gerçek bir bağlantı (sitelink) kurulur.",
+    "save": "Güncelle",
+    "cancel": "İptal et",
+    "queued": "{name} oluşturulacak (yayınlanmadı)",
+    "createLabel": "{parent} altına {name} eklendi"
   },
   "merge": {
     "selectedCount": "{count, plural, one {# öge seçildi} other {# öge seçildi}}",

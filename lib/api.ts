@@ -290,6 +290,20 @@ export async function fetchCategoryWikidataNote(
   return data.qid;
 }
 
+/** Instant-search existing Commons categories by title, for the
+ * add-category autocomplete in the file detail panel. */
+export async function searchCategories(
+  query: string,
+): Promise<{ name: string; files: number | null }[]> {
+  const params = new URLSearchParams({ op: "search", query });
+  const res = await fetch(`/api/commons/category?${params}`);
+  if (!res.ok) throw new Error(`categorySearch ${res.status}`);
+  const data = (await res.json()) as {
+    results: { name: string; files: number | null }[];
+  };
+  return data.results;
+}
+
 export interface CreateCategoryResult {
   moved: string[];
   failed: { title: string; error: string }[];

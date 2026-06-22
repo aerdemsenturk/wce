@@ -11,6 +11,7 @@ import {
   moveCategoryMembership,
   removeCategoryMembership,
   renameCategory,
+  searchCategories,
   setCategorySitelink,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
@@ -18,9 +19,23 @@ import { isLocale, defaultLocale } from "@/i18n/config";
 // Server-side proxy for read-only Commons category calls.
 // GET /api/commons/category?op=children&category=Lycian%20Way&lang=tr
 // GET /api/commons/category?op=files&category=Lycian%20Way
+// GET /api/commons/category?op=search&query=Istanbul
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const op = searchParams.get("op") ?? "children";
+
+  if (op === "search") {
+    const query = searchParams.get("query")?.trim();
+    if (!query) return NextResponse.json({ results: [] });
+    try {
+      const results = await searchCategories(query);
+      return NextResponse.json({ results });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upstream error";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
+
   const category = searchParams.get("category")?.trim();
   const langParam = searchParams.get("lang") ?? undefined;
   const lang = isLocale(langParam) ? langParam : defaultLocale;

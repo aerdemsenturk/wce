@@ -20,7 +20,8 @@
     "loading": "Loading…",
     "fileCount": "{count, plural, =0 {no files} one {# file} other {# files}}",
     "subcatCount": "{count, plural, =0 {no subcategories} one {# subcategory} other {# subcategories}}",
-    "noWikidata": "No Wikidata link"
+    "noWikidata": "No Wikidata link",
+    "addSubcategory": "Add subcategory"
   },
   "filters": {
     "all": "All",
@@ -62,7 +63,10 @@
     "removeCategoryLabel": "{name}: removed from {category}",
     "addCategory": "+ category",
     "addCategoryLabel": "{name}: added to {category}",
-    "categoryNamePlaceholder": "Category name",
+    "addCategoryTitle": "Add category",
+    "createNewCategory": "+ Create new category",
+    "backToSearch": "← Search existing categories",
+    "parentCategoryLabel": "Parent category",
     "location": "Location",
     "depicts": "Depicts",
     "noLocation": "No location data",
@@ -86,7 +90,12 @@
     "error": "Something went wrong",
     "retry": "Retry",
     "loading": "Loading…",
-    "newTab": "opens in a new tab"
+    "newTab": "opens in a new tab",
+    "searching": "Searching…",
+    "noResults": "No results found",
+    "clearSelection": "Clear selection",
+    "wikidataSearchPlaceholder": "Search a Wikidata item…",
+    "categorySearchPlaceholder": "Search a category…"
   },
   "dnd": {
     "moveQueued": "Will move to {target} (not published yet)",
@@ -97,11 +106,21 @@
     "modalTitle": "Edit category",
     "nameLabel": "Category name",
     "qidLabel": "Wikidata item (optional)",
-    "qidPlaceholder": "e.g. Q12345",
     "qidNote": "When published, this creates a real Wikidata sitelink between the category page and this item.",
-    "save": "Save",
+    "save": "Update",
     "cancel": "Cancel",
     "renameLabel": "{oldName} → {newName} will be renamed"
+  },
+  "newCategory": {
+    "modalTitle": "Add new category",
+    "nameLabel": "Category name",
+    "namePlaceholder": "e.g. Lycian Way",
+    "qidLabel": "Wikidata item (optional)",
+    "qidNote": "When published, this creates a real Wikidata sitelink between the category page and this item.",
+    "save": "Update",
+    "cancel": "Cancel",
+    "queued": "{name} will be created (not published yet)",
+    "createLabel": "Added {name} under {parent}"
   },
   "merge": {
     "selectedCount": "{count, plural, one {# item selected} other {# items selected}}",
