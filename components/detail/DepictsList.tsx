@@ -17,48 +17,79 @@ export default function DepictsList({
   depicts: Depict[];
 }) {
   const t = useTranslations("detail");
-  const { addChange } = useBrowser();
+  const { addChange, removeChange } = useBrowser();
   const [adding, setAdding] = useState(false);
+  // Maps statement id -> the id of the queued removeDepict change, so a
+  // second click can find and cancel that exact change.
+  const [pendingRemovedIds, setPendingRemovedIds] = useState<Map<string, string>>(new Map());
 
   return (
     <>
       <ul className="flex flex-wrap items-center gap-1.5">
-        {depicts.map((d) => (
-          <li key={d.id}>
-            <span
-              title={d.label ?? d.id}
-              className="group flex max-w-full items-center gap-1.5 rounded-full bg-sky-50 pl-2.5 pr-1 py-1 text-xs text-sky-700 hover:bg-sky-100"
-            >
-              <ExternalLink
-                href={`https://www.wikidata.org/wiki/${d.id}`}
-                className="inline-flex min-w-0 items-center gap-1.5"
+        {depicts.map((d) => {
+          const changeId = pendingRemovedIds.get(d.statementId);
+          const removed = changeId !== undefined;
+          return (
+            <li key={d.id}>
+              <span
+                title={d.label ?? d.id}
+                className={`group flex max-w-full items-center gap-1.5 rounded-full pl-2.5 pr-1 py-1 text-xs ${
+                  removed ? "bg-red-50 text-red-500" : "bg-sky-50 text-sky-700 hover:bg-sky-100"
+                }`}
               >
-                <span className="min-w-0 truncate">{d.label ?? d.id}</span>
-                <span className="shrink-0 font-mono text-[10px] text-sky-400">{d.id}</span>
-                <ExternalIcon className="shrink-0 opacity-60" />
-              </ExternalLink>
-              <button
-                type="button"
-                onClick={() =>
-                  addChange({
-                    id: crypto.randomUUID(),
-                    type: "removeDepict",
-                    fileTitle: title,
-                    statementId: d.statementId,
-                    label: t("removeDepictLabel", {
-                      name: title.replace(/^File:/i, ""),
-                      depict: d.label ?? d.id,
-                    }),
-                  })
-                }
-                aria-label={t("removeDepict")}
-                className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-sky-400 hover:bg-sky-200 hover:text-sky-700"
-              >
-                <XIcon />
-              </button>
-            </span>
-          </li>
-        ))}
+                <ExternalLink
+                  href={`https://www.wikidata.org/wiki/${d.id}`}
+                  className="inline-flex min-w-0 items-center gap-1.5"
+                >
+                  <span className="min-w-0 truncate">{d.label ?? d.id}</span>
+                  <span
+                    className={`shrink-0 font-mono text-[10px] ${
+                      removed ? "text-red-300" : "text-sky-400"
+                    }`}
+                  >
+                    {d.id}
+                  </span>
+                  <ExternalIcon className="shrink-0 opacity-60" />
+                </ExternalLink>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (changeId !== undefined) {
+                      removeChange(changeId);
+                      setPendingRemovedIds((prev) => {
+                        const next = new Map(prev);
+                        next.delete(d.statementId);
+                        return next;
+                      });
+                      return;
+                    }
+                    const id = crypto.randomUUID();
+                    setPendingRemovedIds((prev) => new Map(prev).set(d.statementId, id));
+                    addChange({
+                      id,
+                      type: "removeDepict",
+                      fileTitle: title,
+                      statementId: d.statementId,
+                      label: t("removeDepictLabel", {
+                        name: title.replace(/^File:/i, ""),
+                        depict: d.label ?? d.id,
+                      }),
+                    });
+                  }}
+                  aria-label={removed ? t("undoRemoveDepict") : t("removeDepict")}
+                  title={removed ? t("undoRemoveDepict") : undefined}
+                  className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
+                    removed
+                      ? "text-red-400 hover:bg-red-200 hover:text-red-700"
+                      : "text-sky-400 hover:bg-sky-200 hover:text-sky-700"
+                  }`}
+                >
+                  {removed ? <UndoIcon /> : <XIcon />}
+                </button>
+              </span>
+            </li>
+          );
+        })}
 
         <li>
           <button
@@ -99,6 +130,27 @@ function XIcon() {
   return (
     <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden>
       <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <polyline
+        points="9 14 4 9 9 4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M20 20v-7a4 4 0 0 0-4-4H4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

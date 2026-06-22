@@ -74,6 +74,9 @@ interface BrowserState {
   /** Changes queued locally but not yet written to Commons. */
   pendingChanges: PendingChange[];
   addChange: (change: PendingChange) => void;
+  /** Remove a single queued change by id, regardless of its position in the
+   * queue (unlike `undo`, which only pops the most recent one). */
+  removeChange: (id: string) => void;
   undo: () => void;
   redo: () => void;
   redoCount: number;
@@ -199,6 +202,14 @@ export default function BrowserProvider({
     [bumpVersion],
   );
 
+  const removeChange = useCallback(
+    (id: string) => {
+      setPendingChanges((prev) => prev.filter((c) => c.id !== id));
+      bumpVersion();
+    },
+    [bumpVersion],
+  );
+
   const undo = useCallback(() => {
     setPendingChanges((prev) => {
       if (prev.length === 0) return prev;
@@ -317,6 +328,7 @@ export default function BrowserProvider({
       setMergeModalOpen,
       pendingChanges,
       addChange,
+      removeChange,
       undo,
       redo,
       redoCount: redoStack.length,
@@ -346,6 +358,7 @@ export default function BrowserProvider({
       mergeModalOpen,
       pendingChanges,
       addChange,
+      removeChange,
       undo,
       redo,
       redoStack,
