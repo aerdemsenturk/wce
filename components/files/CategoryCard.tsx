@@ -3,16 +3,35 @@
 import { useTranslations } from "next-intl";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
+import { setDragPayload } from "@/lib/dnd";
+import { withCategoryPrefix } from "@/lib/category";
 
 export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   const t = useTranslations("sidebar");
-  const { path, selectPath } = useBrowser();
+  const { current, path, selectPath } = useBrowser();
+  const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(
+    subcat.name,
+  );
 
   return (
     <button
       type="button"
+      draggable
+      onDragStart={(e) => {
+        if (!current) return;
+        setDragPayload(e, {
+          pageTitle: withCategoryPrefix(subcat.name),
+          fromCategory: current,
+        });
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onClick={() => selectPath([...path, subcat.name])}
-      className="group flex flex-col overflow-hidden rounded-lg border border-border-base bg-panel text-left transition-shadow hover:shadow-md"
+      className={`group flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
+        isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-border-base"
+      }`}
     >
       <div className="relative flex aspect-square w-full items-center justify-center bg-amber-50">
         <FolderIcon />

@@ -107,6 +107,94 @@ export async function updateFileDescription(
   }
 }
 
+/** Move a file or subcategory's parent category (drag-and-drop write path). */
+export async function moveCategoryMembership(
+  pageTitle: string,
+  fromCategory: string,
+  toCategory: string,
+): Promise<void> {
+  const res = await fetch("/api/commons/category", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "move", pageTitle, fromCategory, toCategory }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `move ${res.status}`);
+  }
+  invalidateCategory(fromCategory);
+  invalidateCategory(toCategory);
+}
+
+export interface RenameCategoryResult {
+  moved: string[];
+  failed: { title: string; error: string }[];
+}
+
+/** Rename a category page and recategorize its direct files (breadcrumb edit). */
+export async function renameCategory(
+  oldName: string,
+  newName: string,
+  parentCategory?: string | null,
+): Promise<RenameCategoryResult> {
+  const res = await fetch("/api/commons/category", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "rename", oldName, newName }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `rename ${res.status}`);
+  }
+  invalidateCategory(oldName);
+  invalidateCategory(newName);
+  if (parentCategory) invalidateCategory(parentCategory);
+  return res.json();
+}
+
+export interface CreateCategoryResult {
+  moved: string[];
+  failed: { title: string; error: string }[];
+}
+
+/** Create a new category under `parent` and recategorize the given files into
+ * it (merge-selection write path). */
+export async function createCategoryFromSelection(
+  name: string,
+  parent: string,
+  fileTitles: string[],
+  wikidataQid?: string,
+): Promise<CreateCategoryResult> {
+  const res = await fetch("/api/commons/category", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, parent, fileTitles, wikidataQid }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `create ${res.status}`);
+  }
+  invalidateCategory(parent);
+  invalidateCategory(name);
+  for (const title of fileTitles) {
+    for (const key of fileDetailCache.keys()) {
+      if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+    }
+  }
+  return res.json();
+}
+
+/** Drop every cached entry (any locale) for a category — children listing
+ * and grid — so the next read reflects a just-written move/create. */
+export function invalidateCategory(category: string): void {
+  for (const key of childrenCache.keys()) {
+    if (key.endsWith(`:${category}`)) childrenCache.delete(key);
+  }
+  for (const key of gridCache.keys()) {
+    if (key.endsWith(`:${category}`)) gridCache.delete(key);
+  }
+}
+
 export async function fetchSearchFiles(
   query: string,
   category: string | null,

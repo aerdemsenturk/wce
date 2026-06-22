@@ -1,10 +1,13 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
+import { setDragPayload } from "@/lib/dnd";
+import { withCategoryPrefix } from "@/lib/category";
 
 interface CategoryNodeProps {
   name: string;
@@ -26,7 +29,8 @@ export default function CategoryNode({
 }: CategoryNodeProps) {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { path: activePath, selectPath } = useBrowser();
+  const { path: activePath, selectPath, version } = useBrowser();
+  const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(name);
 
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +39,21 @@ export default function CategoryNode({
 
   const isActive = activePath.join("/") === path.join("/");
   const expandable = subcats === null || subcats > 0;
+  const parent = path.length > 1 ? path[path.length - 2] : null;
+
+  // After a drag-drop move elsewhere invalidates the shared cache, refetch
+  // this node's already-expanded children so it reflects the new state.
+  useEffect(() => {
+    if (!expanded) return;
+    let active = true;
+    getCategoryChildrenCached(name, locale).then((data) => {
+      if (active) setChildren(data.subcategories);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only refetch on external version bump
+  }, [version]);
 
   async function toggle() {
     if (!expandable) return;
@@ -58,9 +77,17 @@ export default function CategoryNode({
   return (
     <li>
       <div
+        draggable={parent != null}
+        onDragStart={(e) => {
+          if (!parent) return;
+          setDragPayload(e, { pageTitle: withCategoryPrefix(name), fromCategory: parent });
+        }}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
         className={`group flex items-center gap-1 rounded-md pr-2 text-sm ${
           isActive ? "bg-slate-900 text-white" : "hover:bg-slate-100"
-        }`}
+        } ${isOver ? "ring-2 ring-inset ring-slate-900" : ""}`}
         style={{ paddingLeft: `${level * 12 + 4}px` }}
       >
         <button

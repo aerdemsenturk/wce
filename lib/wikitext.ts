@@ -331,3 +331,65 @@ export function withUpdatedDescription(
 
   return wikitext.slice(0, range.start) + newSegment + wikitext.slice(range.end);
 }
+
+/** Find the absolute [start, end) range of a `[[Category:Name|sortkey]]`
+ * link (any namespace alias casing), or null if that category isn't linked
+ * on the page. */
+function findCategoryLinkRange(
+  text: string,
+  category: string,
+): { start: number; end: number } | null {
+  const escaped = category.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `\\[\\[\\s*Category\\s*:\\s*${escaped}\\s*(\\|[^\\]]*)?\\]\\]`,
+    "i",
+  );
+  const m = re.exec(text);
+  if (!m) return null;
+  return { start: m.index, end: m.index + m[0].length };
+}
+
+/**
+ * Replace a page's `[[Category:From]]` link with `[[Category:To]]`,
+ * preserving any sort key. Works on both file pages and category pages
+ * (a category's own wikitext links to its parent the same way). Returns
+ * null if `from` isn't linked on the page.
+ */
+export function withMovedCategory(
+  wikitext: string,
+  fromCategory: string,
+  toCategory: string,
+): string | null {
+  const range = findCategoryLinkRange(wikitext, fromCategory);
+  if (!range) return null;
+
+  const original = wikitext.slice(range.start, range.end);
+  const sortKeyMatch = /\|[^\]]*(?=\]\]$)/.exec(original);
+  const sortKey = sortKeyMatch ? sortKeyMatch[0] : "";
+  const replacement = `[[Category:${toCategory}${sortKey}]]`;
+
+  return wikitext.slice(0, range.start) + replacement + wikitext.slice(range.end);
+}
+
+/** Add a `[[Category:Name]]` link to a page's wikitext (appended at the end,
+ * the conventional place for category links on Commons). */
+export function withAddedCategory(wikitext: string, category: string): string {
+  const trimmed = wikitext.replace(/\s+$/, "");
+  return `${trimmed}\n[[Category:${category}]]\n`;
+}
+
+/**
+ * Build the wikitext for a brand-new Commons category page: a parent
+ * category link, plus an optional informational note pointing at an
+ * existing Wikidata item (this does *not* create a Wikidata sitelink — it's
+ * just a human-readable cross-reference written on the Commons side).
+ */
+export function buildNewCategoryWikitext(
+  parentCategory: string,
+  wikidataQid?: string | null,
+): string {
+  const note = wikidataQid
+    ? `{{Wikidata Infobox|qid=${wikidataQid}}}\n`
+    : "";
+  return `${note}[[Category:${parentCategory}]]\n`;
+}

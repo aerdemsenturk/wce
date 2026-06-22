@@ -59,11 +59,7 @@
     "depicts": "Konu (Depicts)",
     "noLocation": "Konum verisi yok",
     "noDepicts": "Konu verisi yok",
-    "viewOnCommons": "Commons'ta görüntüle",
-    "editOnCommons": "Commons'ta düzenle",
-    "editStructuredData": "Yapısal veriyi düzenle",
-    "addOnCommons": "Commons'ta ekle →",
-    "externalLinkNote": "Harici bağlantı"
+    "addOnCommons": "Commons'ta ekle →"
   },
   "search": {
     "resultsFor": "“{query}” için sonuçlar",
@@ -75,5 +71,36 @@
     "retry": "Tekrar dene",
     "loading": "Yükleniyor…",
     "newTab": "yeni sekmede açılır"
+  },
+  "dnd": {
+    "moveSuccess": "{target} kategorisine taşındı",
+    "moveError": "Taşınamadı — tekrar deneyin veya Commons'ta düzenleyin."
+  },
+  "rename": {
+    "edit": "Yeniden adlandır",
+    "save": "Kaydet",
+    "saving": "Kaydediliyor…",
+    "cancel": "Vazgeç",
+    "success": "{name} olarak yeniden adlandırıldı",
+    "partialSuccess": "Yeniden adlandırıldı — {moved} dosya taşındı, {failed} dosya taşınamadı",
+    "error": "Kategori yeniden adlandırılamadı"
+  },
+  "merge": {
+    "selectedCount": "{count, plural, one {# öge seçildi} other {# öge seçildi}}",
+    "mergeButton": "Yeni kategoride birleştir",
+    "clearSelection": "Seçimi temizle",
+    "title": "Kategori oluştur",
+    "nameLabel": "Kategori adı",
+    "namePlaceholder": "ör. Antalya'da Osmanlı çeşmeleri",
+    "parentNote": "{parent} kategorisinin alt kategorisi olarak oluşturulacak.",
+    "qidLabel": "Wikidata maddesi (opsiyonel)",
+    "qidPlaceholder": "ör. Q12345",
+    "itemsLabel": "{count, plural, one {# öge dahil} other {# öge dahil}}",
+    "cancel": "Vazgeç",
+    "create": "Oluştur",
+    "creating": "Oluşturuluyor…",
+    "success": "{name} oluşturuldu",
+    "partialSuccess": "Kategori oluşturuldu — {moved} dosya taşındı, {failed} dosya taşınamadı",
+    "error": "Kategori oluşturulamadı"
   }
 }

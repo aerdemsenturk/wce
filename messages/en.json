@@ -59,11 +59,7 @@
     "depicts": "Depicts",
     "noLocation": "No location data",
     "noDepicts": "No depicts data",
-    "viewOnCommons": "View on Commons",
-    "editOnCommons": "Edit on Commons",
-    "editStructuredData": "Edit structured data",
-    "addOnCommons": "Add on Commons →",
-    "externalLinkNote": "External link"
+    "addOnCommons": "Add on Commons →"
   },
   "search": {
     "resultsFor": "Results for “{query}”",
@@ -75,5 +71,36 @@
     "retry": "Retry",
     "loading": "Loading…",
     "newTab": "opens in a new tab"
+  },
+  "dnd": {
+    "moveSuccess": "Moved to {target}",
+    "moveError": "Couldn't move — try again or edit on Commons."
+  },
+  "rename": {
+    "edit": "Rename",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "success": "Renamed to {name}",
+    "partialSuccess": "Renamed — moved {moved} files, but {failed} couldn't be moved",
+    "error": "Couldn't rename the category"
+  },
+  "merge": {
+    "selectedCount": "{count, plural, one {# item selected} other {# items selected}}",
+    "mergeButton": "Merge into new category",
+    "clearSelection": "Clear selection",
+    "title": "Create category",
+    "nameLabel": "Category name",
+    "namePlaceholder": "e.g. Ottoman fountains in Antalya",
+    "parentNote": "Will be created as a subcategory of {parent}.",
+    "qidLabel": "Wikidata item (optional)",
+    "qidPlaceholder": "e.g. Q12345",
+    "itemsLabel": "{count, plural, one {# item included} other {# items included}}",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating…",
+    "success": "Created {name}",
+    "partialSuccess": "Created the category — moved {moved}, but {failed} couldn't be moved",
+    "error": "Couldn't create the category"
   }
 }

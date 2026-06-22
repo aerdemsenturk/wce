@@ -9,7 +9,13 @@ import type {
   Subcategory,
 } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
-import { parseInformation, stripHtml, withUpdatedDescription } from "./wikitext";
+import {
+  parseInformation,
+  stripHtml,
+  withUpdatedDescription,
+  withMovedCategory,
+  buildNewCategoryWikitext,
+} from "./wikitext";
 
 export { stripCategoryPrefix, withCategoryPrefix };
 
@@ -24,7 +30,27 @@ const USER_AGENT =
 
 type Params = Record<string, string | number | undefined>;
 
-async function apiGet(base: string, params: Params): Promise<unknown> {
+interface ApiGetOptions {
+  /**
+   * Skip Next's fetch cache entirely. Required for:
+   *  - any read-modify-write (the true latest revision is needed, or
+   *    MediaWiki's own edit-conflict check using a stale basetimestamp
+   *    will misfire);
+   *  - category membership/info reads, so a move/rename/create is visible
+   *    immediately instead of waiting out the revalidate window. Next 16's
+   *    on-demand revalidateTag() is stale-while-revalidate (still serves one
+   *    stale response after invalidation) and its instant variant,
+   *    updateTag(), only works inside Server Actions — neither fits a
+   *    Route Handler that needs the *next* read to be guaranteed fresh.
+   */
+  noStore?: boolean;
+}
+
+async function apiGet(
+  base: string,
+  params: Params,
+  options?: ApiGetOptions,
+): Promise<unknown> {
   const url = new URL(base);
   url.searchParams.set("format", "json");
   url.searchParams.set("formatversion", "2");
@@ -34,8 +60,10 @@ async function apiGet(base: string, params: Params): Promise<unknown> {
 
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT },
-    // Cache upstream responses briefly to be polite to the API.
-    next: { revalidate: 300 },
+    // Cache stable, slow-changing upstream responses briefly to be polite to
+    // the API; bypass entirely where freshness matters (see ApiGetOptions).
+    cache: options?.noStore ? "no-store" : undefined,
+    next: options?.noStore ? undefined : { revalidate: 300 },
   });
   if (!res.ok) {
     throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
@@ -117,14 +145,18 @@ async function listSubcategoryTitles(category: string): Promise<string[]> {
   let cmcontinue: string | undefined;
 
   do {
-    const data = (await apiGet(COMMONS_API, {
-      action: "query",
-      list: "categorymembers",
-      cmtitle: withCategoryPrefix(category),
-      cmtype: "subcat",
-      cmlimit: 500,
-      cmcontinue,
-    })) as {
+    const data = (await apiGet(
+      COMMONS_API,
+      {
+        action: "query",
+        list: "categorymembers",
+        cmtitle: withCategoryPrefix(category),
+        cmtype: "subcat",
+        cmlimit: 500,
+        cmcontinue,
+      },
+      { noStore: true },
+    )) as {
       query?: { categorymembers?: CategoryMember[] };
       continue?: { cmcontinue?: string };
     };
@@ -168,12 +200,16 @@ async function fetchCategoryMeta(category: string): Promise<{
   files: number | null;
   wikibaseItem: string | null;
 }> {
-  const data = (await apiGet(COMMONS_API, {
-    action: "query",
-    titles: withCategoryPrefix(category),
-    prop: "categoryinfo|pageprops",
-    ppprop: "wikibase_item",
-  })) as { query?: { pages?: QueryPage[] } };
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      titles: withCategoryPrefix(category),
+      prop: "categoryinfo|pageprops",
+      ppprop: "wikibase_item",
+    },
+    { noStore: true },
+  )) as { query?: { pages?: QueryPage[] } };
 
   const page = data.query?.pages?.[0];
   return {
@@ -422,16 +458,20 @@ export async function getCategoryGrid(
   let cont: Record<string, string> | undefined;
 
   do {
-    const data = (await apiGet(COMMONS_API, {
-      action: "query",
-      generator: "categorymembers",
-      gcmtitle: withCategoryPrefix(category),
-      gcmtype: "file",
-      gcmlimit: 50,
-      ...IMAGEINFO_PROPS,
-      iiextmetadatalanguage: lang,
-      ...(cont ?? {}),
-    })) as {
+    const data = (await apiGet(
+      COMMONS_API,
+      {
+        action: "query",
+        generator: "categorymembers",
+        gcmtitle: withCategoryPrefix(category),
+        gcmtype: "file",
+        gcmlimit: 50,
+        ...IMAGEINFO_PROPS,
+        iiextmetadatalanguage: lang,
+        ...(cont ?? {}),
+      },
+      { noStore: true },
+    )) as {
       query?: { pages?: ImageInfoPage[] };
       continue?: Record<string, string>;
     };
@@ -483,15 +523,19 @@ export async function getCategoryFiles(
   let cmcontinue: string | undefined;
 
   do {
-    const data = (await apiGet(COMMONS_API, {
-      action: "query",
-      list: "categorymembers",
-      cmtitle: withCategoryPrefix(category),
-      cmtype: "file",
-      cmprop: "title|timestamp|ids",
-      cmlimit: 500,
-      cmcontinue,
-    })) as {
+    const data = (await apiGet(
+      COMMONS_API,
+      {
+        action: "query",
+        list: "categorymembers",
+        cmtitle: withCategoryPrefix(category),
+        cmtype: "file",
+        cmprop: "title|timestamp|ids",
+        cmlimit: 500,
+        cmcontinue,
+      },
+      { noStore: true },
+    )) as {
       query?: { categorymembers?: CategoryMember[] };
       continue?: { cmcontinue?: string };
     };
@@ -620,6 +664,67 @@ interface EditResponse {
   error?: { code?: string; info?: string };
 }
 
+interface PageWikitext {
+  pageid: number;
+  wikitext: string;
+  timestamp: string | undefined;
+}
+
+/** Fetch a page's current wikitext + revision timestamp (for basetimestamp,
+ * which guards against clobbering a concurrent edit). */
+async function fetchPageWikitext(title: string): Promise<PageWikitext | null> {
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      titles: title,
+      prop: "revisions",
+      rvprop: "content|timestamp",
+      rvslots: "main",
+    },
+    { noStore: true },
+  )) as {
+    query?: {
+      pages?: {
+        pageid?: number;
+        revisions?: { timestamp?: string; slots?: { main?: { content?: string } } }[];
+      }[];
+    };
+  };
+
+  const page = data.query?.pages?.[0];
+  const revision = page?.revisions?.[0];
+  const wikitext = revision?.slots?.main?.content;
+  if (page?.pageid == null || wikitext == null) return null;
+  return { pageid: page.pageid, wikitext, timestamp: revision?.timestamp };
+}
+
+async function postEdit(
+  title: string,
+  text: string,
+  summary: string,
+  basetimestamp: string | undefined,
+  extra?: Params,
+): Promise<void> {
+  const token = await getCsrfToken();
+  const result = (await apiPost(COMMONS_API, {
+    action: "edit",
+    title,
+    text,
+    summary,
+    basetimestamp,
+    token,
+    ...extra,
+  })) as EditResponse;
+
+  if (result.error) {
+    throw new Error(result.error.info ?? result.error.code ?? "Edit failed");
+  }
+  if (result.edit?.result !== "Success") {
+    throw new Error("Edit failed");
+  }
+}
+
 /**
  * Patch a single language's description in the {{Information}} template on
  * a file page. Throws if the page doesn't have that template/param in the
@@ -633,49 +738,154 @@ export async function editFileDescription(
 ): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
-  const data = (await apiGet(COMMONS_API, {
-    action: "query",
-    titles: fileTitle,
-    prop: "revisions",
-    rvprop: "content|timestamp",
-    rvslots: "main",
-  })) as {
-    query?: {
-      pages?: {
-        pageid?: number;
-        revisions?: { timestamp?: string; slots?: { main?: { content?: string } } }[];
-      }[];
-    };
-  };
-
-  const page = data.query?.pages?.[0];
-  const revision = page?.revisions?.[0];
-  const wikitext = revision?.slots?.main?.content;
-  if (page?.pageid == null || wikitext == null) {
+  const page = await fetchPageWikitext(fileTitle);
+  if (!page) {
     throw new Error("File not found");
   }
 
-  const updated = withUpdatedDescription(wikitext, lang, value);
+  const updated = withUpdatedDescription(page.wikitext, lang, value);
   if (updated == null) {
     throw new Error(
       "This page's description isn't in a format WCE can edit in place — use 'Edit on Commons'.",
     );
   }
 
+  await postEdit(fileTitle, updated, "Update description via WCE", page.timestamp);
+}
+
+/**
+ * Move a page's category membership: replace `[[Category:from]]` with
+ * `[[Category:to]]` on `pageTitle`'s own wikitext. Works for both file
+ * pages (`File:...`) and category pages (`Category:...`, i.e. re-parenting
+ * a subcategory) — both link to their categories the same way.
+ */
+export async function moveCategoryMembership(
+  pageTitle: string,
+  fromCategory: string,
+  toCategory: string,
+): Promise<void> {
+  const page = await fetchPageWikitext(pageTitle);
+  if (!page) throw new Error("Page not found");
+
+  const updated = withMovedCategory(page.wikitext, fromCategory, toCategory);
+  if (updated == null) {
+    throw new Error(`Page isn't categorized under "${fromCategory}"`);
+  }
+
+  await postEdit(
+    pageTitle,
+    updated,
+    `Move from Category:${fromCategory} to Category:${toCategory} via WCE`,
+    page.timestamp,
+  );
+}
+
+export interface CreateCategoryResult {
+  moved: string[];
+  failed: { title: string; error: string }[];
+}
+
+/**
+ * Create a new Commons category page under `parentCategory`, optionally
+ * noting an existing Wikidata item, then recategorize each selected file
+ * into it (removing the old `parentCategory` link from each, mirroring
+ * drag-and-drop "move" semantics). Individual file failures don't abort the
+ * whole operation — they're reported back so the caller can show which
+ * ones need a manual retry.
+ */
+export async function createCategoryFromSelection(
+  name: string,
+  parentCategory: string,
+  fileTitles: string[],
+  wikidataQid?: string | null,
+): Promise<CreateCategoryResult> {
+  const categoryTitle = withCategoryPrefix(name);
+
   const token = await getCsrfToken();
-  const result = (await apiPost(COMMONS_API, {
+  const createResult = (await apiPost(COMMONS_API, {
     action: "edit",
-    title: fileTitle,
-    text: updated,
-    summary: "Update description via WCE",
-    basetimestamp: revision?.timestamp,
+    title: categoryTitle,
+    text: buildNewCategoryWikitext(parentCategory, wikidataQid),
+    summary: "Create category via WCE",
+    createonly: 1,
     token,
   })) as EditResponse;
 
-  if (result.error) {
-    throw new Error(result.error.info ?? result.error.code ?? "Edit failed");
+  if (createResult.error) {
+    throw new Error(
+      createResult.error.info ?? createResult.error.code ?? "Could not create category",
+    );
   }
-  if (result.edit?.result !== "Success") {
-    throw new Error("Edit failed");
+
+  const moved: string[] = [];
+  const failed: { title: string; error: string }[] = [];
+  for (const title of fileTitles) {
+    try {
+      await moveCategoryMembership(title, parentCategory, name);
+      moved.push(title);
+    } catch (err) {
+      failed.push({
+        title,
+        error: err instanceof Error ? err.message : "Edit failed",
+      });
+    }
   }
+
+  return { moved, failed };
+}
+
+interface MoveResponse {
+  move?: { from?: string; to?: string };
+  error?: { code?: string; info?: string };
+}
+
+export interface RenameCategoryResult {
+  moved: string[];
+  failed: { title: string; error: string }[];
+}
+
+/**
+ * Rename a category: moves the `Category:` page itself (Commons leaves a
+ * redirect at the old title automatically), then recategorizes every file
+ * directly in it from the old name to the new one — without this, the
+ * files would still display under the old title via the redirect, which is
+ * considered poor practice on Commons. Subcategories are intentionally left
+ * untouched (out of scope — see the limited blast radius of a single
+ * rename action).
+ */
+export async function renameCategory(
+  oldName: string,
+  newName: string,
+): Promise<RenameCategoryResult> {
+  const token = await getCsrfToken();
+  const moveResult = (await apiPost(COMMONS_API, {
+    action: "move",
+    from: withCategoryPrefix(oldName),
+    to: withCategoryPrefix(newName),
+    reason: "Rename via WCE",
+    token,
+  })) as MoveResponse;
+
+  if (moveResult.error) {
+    throw new Error(
+      moveResult.error.info ?? moveResult.error.code ?? "Could not rename category",
+    );
+  }
+
+  const files = await getCategoryFiles(oldName);
+  const moved: string[] = [];
+  const failed: { title: string; error: string }[] = [];
+  for (const file of files) {
+    try {
+      await moveCategoryMembership(file.title, oldName, newName);
+      moved.push(file.title);
+    } catch (err) {
+      failed.push({
+        title: file.title,
+        error: err instanceof Error ? err.message : "Edit failed",
+      });
+    }
+  }
+
+  return { moved, failed };
 }

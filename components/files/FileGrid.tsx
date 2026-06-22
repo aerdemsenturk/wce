@@ -10,6 +10,7 @@ import {
 import type { CategoryFileInfo, Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import CategoryCard from "./CategoryCard";
+import CreateCategoryModal from "./CreateCategoryModal";
 import FileCard from "./FileCard";
 import FilterBar from "./FilterBar";
 import SearchBanner from "./SearchBanner";
@@ -25,7 +26,8 @@ export default function FileGrid() {
   const t = useTranslations("sidebar");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { current, search } = useBrowser();
+  const { current, search, selected, mergeModalOpen, setMergeModalOpen, version } =
+    useBrowser();
 
   const [files, setFiles] = useState<CategoryFileInfo[] | null>(null);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -54,7 +56,7 @@ export default function FileGrid() {
     return () => {
       active = false;
     };
-  }, [current, search, locale]);
+  }, [current, search, locale, version]);
 
   useEffect(() => {
     let active = true;
@@ -81,7 +83,7 @@ export default function FileGrid() {
     return () => {
       active = false;
     };
-  }, [current, search, locale]);
+  }, [current, search, locale, version]);
 
   const counts = useMemo(
     () => computeCounts(files ?? []),
@@ -154,6 +156,14 @@ export default function FileGrid() {
             <FileCard key={file.pageid} file={file} />
           ))}
         </div>
+      )}
+
+      {mergeModalOpen && current && (
+        <CreateCategoryModal
+          parentCategory={current}
+          fileTitles={[...selected]}
+          onClose={() => setMergeModalOpen(false)}
+        />
       )}
     </div>
   );

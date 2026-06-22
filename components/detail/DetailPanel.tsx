@@ -9,7 +9,6 @@ import ResizablePanel from "@/components/layout/ResizablePanel";
 import ExternalLink from "@/components/ui/ExternalLink";
 import LicenseBadge from "@/components/ui/LicenseBadge";
 import DescriptionField from "./DescriptionField";
-import EditLinks from "./EditLinks";
 import LocationSection from "./LocationSection";
 import DepictsList from "./DepictsList";
 
@@ -167,10 +166,6 @@ function DetailContent({ title }: { title: string }) {
                 structuredDataUrl={`https://commons.wikimedia.org/wiki/Special:EntityPage/${detail.mediaId}`}
               />
             </Field>
-
-            <div className="border-t border-border-base pt-4">
-              <EditLinks file={detail} />
-            </div>
           </div>
         )}
       </div>

@@ -4,20 +4,44 @@ import Image from "next/image";
 import type { CategoryFileInfo } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { setDragPayload } from "@/lib/dnd";
 import StatusDots from "@/components/ui/StatusDots";
 
 export default function FileCard({ file }: { file: CategoryFileInfo }) {
-  const { selectedFile, selectFile } = useBrowser();
+  const { current, selectedFile, selectFile, selected, toggleSelected } =
+    useBrowser();
   const active = selectedFile?.pageid === file.pageid;
+  const checked = selected.has(file.title);
 
   return (
     <button
       type="button"
+      draggable
+      onDragStart={(e) => {
+        if (!current) return;
+        setDragPayload(e, { pageTitle: file.title, fromCategory: current });
+      }}
       onClick={() => selectFile(file)}
-      className={`group flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
+      className={`group relative flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
         active ? "border-slate-900 ring-1 ring-slate-900" : "border-border-base"
       }`}
     >
+      <span
+        role="checkbox"
+        aria-checked={checked}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleSelected(file.title);
+        }}
+        className={`absolute top-1.5 left-1.5 z-10 grid h-5 w-5 place-items-center rounded border ${
+          checked
+            ? "border-slate-900 bg-white text-slate-900"
+            : "border-slate-300 bg-white/90 text-transparent"
+        }`}
+      >
+        <CheckIcon />
+      </span>
+
       <div className="relative aspect-square w-full bg-slate-100">
         {file.thumbUrl ? (
           <Image
@@ -51,6 +75,20 @@ export default function FileCard({ file }: { file: CategoryFileInfo }) {
         <StatusDots status={file.status} />
       </div>
     </button>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M2.5 6.5l2.5 2.5 4.5-5.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
