@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   addDepict,
   editFileDescription,
+  editFileLocation,
   getFileDetail,
   removeDepict,
 } from "@/lib/mediawiki";
@@ -34,11 +35,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// v2 write path: patch a single language's description in place, or add/
-// remove a depicts (P180) statement on the file's Structured Data.
+// v2 write path: patch a single language's description in place, add/remove
+// a depicts (P180) statement on the file's Structured Data, or set the
+// {{Location}} coordinates.
 // PATCH /api/commons/file  { title, lang, value }
 // PATCH /api/commons/file  { op: "addDepict", pageid, qid }
 // PATCH /api/commons/file  { op: "removeDepict", statementId }
+// PATCH /api/commons/file  { op: "location", title, lat, lon }
 export async function PATCH(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     op?: string;
@@ -48,6 +51,8 @@ export async function PATCH(request: NextRequest) {
     pageid?: number;
     qid?: string;
     statementId?: string;
+    lat?: number;
+    lon?: number;
   } | null;
 
   try {
@@ -71,6 +76,22 @@ export async function PATCH(request: NextRequest) {
         );
       }
       await removeDepict(statementId);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body?.op === "location") {
+      const locationTitle = body.title?.trim();
+      if (
+        !locationTitle ||
+        typeof body.lat !== "number" ||
+        typeof body.lon !== "number"
+      ) {
+        return NextResponse.json(
+          { error: "Missing 'title', 'lat', or 'lon'" },
+          { status: 400 },
+        );
+      }
+      await editFileLocation(locationTitle, body.lat, body.lon);
       return NextResponse.json({ ok: true });
     }
 

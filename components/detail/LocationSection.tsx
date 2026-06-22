@@ -5,21 +5,26 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { Coordinates } from "@/lib/types";
 import { reverseGeocode } from "@/lib/nominatim";
-import ExternalLink from "@/components/ui/ExternalLink";
+import { useBrowser } from "@/components/browser/BrowserProvider";
+import AddLocationModal from "./AddLocationModal";
 
 // Map only runs client-side (MapLibre touches window at import time).
 const LocationMap = dynamic(() => import("./LocationMap"), { ssr: false });
 
 export default function LocationSection({
+  title,
   coordinates,
-  commonsUrl,
+  onSaved,
 }: {
+  title: string;
   coordinates: Coordinates | null;
-  commonsUrl: string;
+  onSaved: (next: Coordinates) => void;
 }) {
   const t = useTranslations("detail");
   const locale = useLocale();
+  const { addChange } = useBrowser();
   const [place, setPlace] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -34,18 +39,33 @@ export default function LocationSection({
     };
   }, [coordinates, locale]);
 
+  function save(lat: number, lon: number) {
+    addChange({
+      id: crypto.randomUUID(),
+      type: "location",
+      fileTitle: title,
+      lat,
+      lon,
+      label: t("locationChangeLabel", { name: title.replace(/^File:/i, "") }),
+    });
+    onSaved({ lat, lon });
+  }
+
   if (!coordinates) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-        <span className="text-sm text-slate-400">{t("noLocation")}</span>
-        <ExternalLink
-          href={commonsUrl}
-          className="text-xs text-sky-600 hover:underline"
+      <>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
         >
-          {t("addOnCommons")}
-        </ExternalLink>
-      </div>
+          {t("addLocation")}
+        </button>
+
+        {adding && (
+          <AddLocationModal onSave={save} onClose={() => setAdding(false)} />
+        )}
+      </>
     );
   }
 

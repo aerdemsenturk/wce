@@ -3,7 +3,12 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getFileDetailCached } from "@/lib/api";
-import { overlayDescriptions, overlayCategories, overlayDepicts } from "@/lib/pendingChanges";
+import {
+  overlayDescriptions,
+  overlayCategories,
+  overlayDepicts,
+  overlayLocation,
+} from "@/lib/pendingChanges";
 import type { FileDetail } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import ResizablePanel from "@/components/layout/ResizablePanel";
@@ -56,6 +61,7 @@ function DetailContent({ title }: { title: string }) {
             descriptions: overlayDescriptions(title, data.descriptions, pendingChanges),
             categories: overlayCategories(title, data.categories, pendingChanges),
             depicts: overlayDepicts(title, data.depicts, pendingChanges),
+            coordinates: overlayLocation(title, data.coordinates, pendingChanges),
           });
         }
       } catch {
@@ -204,8 +210,11 @@ function DetailContent({ title }: { title: string }) {
 
             <Field label={t("location")}>
               <LocationSection
+                title={detail.title}
                 coordinates={detail.coordinates}
-                commonsUrl={detail.descriptionUrl}
+                onSaved={(next) =>
+                  setDetail((prev) => (prev ? { ...prev, coordinates: next } : prev))
+                }
               />
             </Field>
 

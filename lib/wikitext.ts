@@ -332,6 +332,61 @@ export function withUpdatedDescription(
   return wikitext.slice(0, range.start) + newSegment + wikitext.slice(range.end);
 }
 
+/** Find the absolute [start, end) range of an existing {{Location}} /
+ * {{Object location}} template (braces included), or null if the page
+ * doesn't have one yet. */
+function findLocationTemplateRange(
+  text: string,
+): { start: number; end: number } | null {
+  const re = /\{\{\s*(?:location|object location)\b/i;
+  const m = re.exec(text);
+  if (!m) return null;
+
+  let i = m.index + 2;
+  let depth = 1;
+  while (i < text.length && depth > 0) {
+    if (text[i] === "{" && text[i + 1] === "{") {
+      depth++;
+      i += 2;
+      continue;
+    }
+    if (text[i] === "}" && text[i + 1] === "}") {
+      depth--;
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  return { start: m.index, end: i };
+}
+
+/**
+ * Set the file's {{Location dec|lat|lon}} coordinates, replacing an existing
+ * {{Location}}/{{Object location}} template in place, or inserting one right
+ * after {{Information}} (or at the top of the page, if there's no
+ * Information template) when the page has no location yet.
+ */
+export function withUpdatedLocation(
+  wikitext: string,
+  lat: number,
+  lon: number,
+): string {
+  const template = `{{Location dec|${lat}|${lon}}}`;
+
+  const existing = findLocationTemplateRange(wikitext);
+  if (existing) {
+    return wikitext.slice(0, existing.start) + template + wikitext.slice(existing.end);
+  }
+
+  const infoBody = findTemplateBodyRange(wikitext, "Information");
+  if (infoBody) {
+    const insertAt = infoBody.end + 2; // just past the Information template's closing "}}"
+    return wikitext.slice(0, insertAt) + `\n${template}` + wikitext.slice(insertAt);
+  }
+
+  return `${template}\n${wikitext}`;
+}
+
 /** Find the absolute [start, end) range of a `[[Category:Name|sortkey]]`
  * link (any namespace alias casing), or null if that category isn't linked
  * on the page. */

@@ -13,6 +13,7 @@ import {
   parseInformation,
   stripHtml,
   withUpdatedDescription,
+  withUpdatedLocation,
   withMovedCategory,
   withRemovedCategory,
   withAddedCategory,
@@ -890,6 +891,26 @@ export async function editFileDescription(
   }
 
   await postEdit(fileTitle, updated, "Update description via WCE", page.timestamp);
+}
+
+/**
+ * Set a file's {{Location dec|lat|lon}} coordinates, replacing any existing
+ * location template or inserting a new one.
+ */
+export async function editFileLocation(
+  title: string,
+  lat: number,
+  lon: number,
+): Promise<void> {
+  const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
+
+  const page = await fetchPageWikitext(fileTitle);
+  if (!page) {
+    throw new Error("File not found");
+  }
+
+  const updated = withUpdatedLocation(page.wikitext, lat, lon);
+  await postEdit(fileTitle, updated, "Add location via WCE", page.timestamp);
 }
 
 /**

@@ -170,6 +170,26 @@ export async function removeDepict(title: string, statementId: string): Promise<
   }
 }
 
+/** Set a file's {{Location}} coordinates (queued write path). */
+export async function updateFileLocation(
+  title: string,
+  lat: number,
+  lon: number,
+): Promise<void> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "location", title, lat, lon }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `location ${res.status}`);
+  }
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+}
+
 /** Search Wikidata items by label, for the add-depict autocomplete. */
 export async function searchWikidataItems(
   query: string,

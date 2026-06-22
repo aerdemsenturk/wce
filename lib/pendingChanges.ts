@@ -3,7 +3,14 @@
 // hits Publish. The overlay functions below let the tree/grid/detail views
 // show the queue's effect before anything is actually written.
 
-import type { CategoryFileInfo, CategoryWikidata, Depict, LangText, Subcategory } from "./types";
+import type {
+  CategoryFileInfo,
+  CategoryWikidata,
+  Coordinates,
+  Depict,
+  LangText,
+  Subcategory,
+} from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
 
 export interface DescriptionChange {
@@ -84,6 +91,15 @@ export interface RemoveDepictChange {
   label: string;
 }
 
+export interface LocationChange {
+  id: string;
+  type: "location";
+  fileTitle: string; // "File:Foo.jpg"
+  lat: number;
+  lon: number;
+  label: string;
+}
+
 export type PendingChange =
   | DescriptionChange
   | MoveChange
@@ -92,7 +108,8 @@ export type PendingChange =
   | RenameChange
   | AddCategoryChange
   | AddDepictChange
-  | RemoveDepictChange;
+  | RemoveDepictChange
+  | LocationChange;
 
 /** Walks pending renames back to the name the category still has on
  * Commons, so views can fetch/compare using a name that actually exists
@@ -223,6 +240,21 @@ export function overlayDescriptions(
       result = result.map((d) =>
         d.lang === change.lang ? { ...d, value: change.newValue } : d,
       );
+    }
+  }
+  return result;
+}
+
+/** A file's coordinates, adjusted for a not-yet-published location edit. */
+export function overlayLocation(
+  fileTitle: string,
+  base: Coordinates | null,
+  changes: PendingChange[],
+): Coordinates | null {
+  let result = base;
+  for (const change of changes) {
+    if (change.type === "location" && change.fileTitle === fileTitle) {
+      result = { lat: change.lat, lon: change.lon };
     }
   }
   return result;
