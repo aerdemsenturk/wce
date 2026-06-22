@@ -69,11 +69,14 @@ export default function WikidataBadge() {
       href={wikidataUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+      title={wikidata.label ?? wikidata.id}
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
     >
-      <span className="font-mono">{wikidata.id}</span>
+      <span className="shrink-0 font-mono">{wikidata.id}</span>
       {wikidata.label && (
-        <span className="border-l border-sky-200 pl-1.5">{wikidata.label}</span>
+        <span className="min-w-0 truncate border-l border-sky-200 pl-1.5">
+          {wikidata.label}
+        </span>
       )}
       <ExternalIcon />
     </a>

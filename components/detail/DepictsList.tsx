@@ -25,14 +25,17 @@ export default function DepictsList({
       <ul className="flex flex-wrap items-center gap-1.5">
         {depicts.map((d) => (
           <li key={d.id}>
-            <span className="group flex items-center gap-1.5 rounded-full bg-sky-50 pl-2.5 pr-1 py-1 text-xs text-sky-700 hover:bg-sky-100">
+            <span
+              title={d.label ?? d.id}
+              className="group flex max-w-full items-center gap-1.5 rounded-full bg-sky-50 pl-2.5 pr-1 py-1 text-xs text-sky-700 hover:bg-sky-100"
+            >
               <ExternalLink
                 href={`https://www.wikidata.org/wiki/${d.id}`}
-                className="inline-flex items-center gap-1.5"
+                className="inline-flex min-w-0 items-center gap-1.5"
               >
-                <span>{d.label ?? d.id}</span>
-                <span className="font-mono text-[10px] text-sky-400">{d.id}</span>
-                <ExternalIcon className="opacity-60" />
+                <span className="min-w-0 truncate">{d.label ?? d.id}</span>
+                <span className="shrink-0 font-mono text-[10px] text-sky-400">{d.id}</span>
+                <ExternalIcon className="shrink-0 opacity-60" />
               </ExternalLink>
               <button
                 type="button"
@@ -49,7 +52,7 @@ export default function DepictsList({
                   })
                 }
                 aria-label={t("removeDepict")}
-                className="grid h-3.5 w-3.5 place-items-center rounded-full text-sky-400 hover:bg-sky-200 hover:text-sky-700"
+                className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-sky-400 hover:bg-sky-200 hover:text-sky-700"
               >
                 <XIcon />
               </button>

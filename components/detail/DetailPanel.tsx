@@ -147,7 +147,8 @@ function DetailContent({ title }: { title: string }) {
                 {detail.categories.map((cat) => (
                   <span
                     key={cat}
-                    className="group flex items-center gap-1 rounded-full bg-slate-100 pl-2 pr-1 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
+                    title={cat}
+                    className="group flex max-w-full items-center gap-1 rounded-full bg-slate-100 pl-2 pr-1 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
                   >
                     <button
                       type="button"
@@ -155,6 +156,7 @@ function DetailContent({ title }: { title: string }) {
                         setRoot(cat);
                         selectFile(null);
                       }}
+                      className="min-w-0 truncate"
                     >
                       {cat}
                     </button>
@@ -173,7 +175,7 @@ function DetailContent({ title }: { title: string }) {
                         })
                       }
                       aria-label={t("removeCategory")}
-                      className="grid h-3.5 w-3.5 place-items-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700"
+                      className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-slate-300 hover:text-slate-700"
                     >
                       <XIcon />
                     </button>
