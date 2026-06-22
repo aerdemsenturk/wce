@@ -978,13 +978,20 @@ export async function createCategoryFromSelection(
   return { moved, failed };
 }
 
-/** Read the informational Wikidata note (if any) from a category page's
- * wikitext — distinct from the real sitelink id surfaced by
- * getCategoryChildren()'s pageprops lookup. */
+/** Resolve the Wikidata id to prefill in the edit-category modal: prefer the
+ * real sitelink (pageprops `wikibase_item`, same source as the sidebar's
+ * WikidataBadge) and fall back to the informational `{{Wikidata Infobox}}`
+ * note in the page's wikitext, which is the only option for categories
+ * without a real sitelink yet. */
 export async function getCategoryWikidataNote(
   category: string,
 ): Promise<string | null> {
-  const page = await fetchPageWikitext(withCategoryPrefix(category));
+  const title = withCategoryPrefix(category);
+  const [meta, page] = await Promise.all([
+    fetchCategoryMeta(title),
+    fetchPageWikitext(title),
+  ]);
+  if (meta.wikibaseItem) return meta.wikibaseItem;
   return page ? parseWikidataQid(page.wikitext) : null;
 }
 
