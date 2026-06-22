@@ -96,7 +96,7 @@ export default function AddFileCategoryModal({
           <button
             type="button"
             onClick={() => setMode("create")}
-            className="text-xs text-slate-500 underline hover:text-slate-800"
+            className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
           >
             {t("createNewCategory")}
           </button>
