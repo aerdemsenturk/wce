@@ -17,6 +17,7 @@
     "empty": "Henüz kategori seçilmedi",
     "loading": "Yükleniyor…",
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
+    "subcatCount": "{count, plural, =0 {alt kategori yok} one {# alt kategori} other {# alt kategori}}",
     "noWikidata": "Wikidata bağlantısı yok"
   },
   "filters": {
@@ -44,6 +45,11 @@
   "detail": {
     "open": "Aç",
     "close": "Kapat",
+    "edit": "Düzenle",
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "saving": "Kaydediliyor…",
+    "saveError": "Kaydedilemedi — \"Commons'ta düzenle\"yi deneyin.",
     "description": "Açıklama",
     "date": "Tarih",
     "author": "Yazar",

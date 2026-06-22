@@ -9,12 +9,13 @@ import type {
   Subcategory,
 } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
-import { parseInformation, stripHtml } from "./wikitext";
+import { parseInformation, stripHtml, withUpdatedDescription } from "./wikitext";
 
 export { stripCategoryPrefix, withCategoryPrefix };
 
-// Read-only MediaWiki Action API client. Runs server-side (inside route
-// handlers) so we can send a proper User-Agent, which Wikimedia requires.
+// MediaWiki Action API client. Runs server-side (inside route handlers) so we
+// can send a proper User-Agent (Wikimedia requires it) and the OAuth bearer
+// token for write calls.
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
 const WIKIDATA_API = "https://www.wikidata.org/w/api.php";
 
@@ -42,6 +43,55 @@ async function apiGet(base: string, params: Params): Promise<unknown> {
   return res.json();
 }
 
+/**
+ * Authenticated POST for write calls (action=edit, tokens, ...). Uses the
+ * owner-only OAuth 2.0 access token configured in the environment — there is
+ * no interactive login/callback flow because that consumer is pre-authorized
+ * for a single Wikimedia account.
+ */
+async function apiPost(base: string, params: Params): Promise<unknown> {
+  const token = process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error(
+      "WIKIMEDIA_OAUTH_ACCESS_TOKEN is not configured — writes are disabled.",
+    );
+  }
+
+  const body = new URLSearchParams();
+  body.set("format", "json");
+  body.set("formatversion", "2");
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) body.set(key, String(value));
+  }
+
+  const res = await fetch(base, {
+    method: "POST",
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Api-User-Agent": USER_AGENT,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+async function getCsrfToken(): Promise<string> {
+  const data = (await apiPost(COMMONS_API, {
+    action: "query",
+    meta: "tokens",
+    type: "csrf",
+  })) as { query?: { tokens?: { csrftoken?: string } } };
+
+  const token = data.query?.tokens?.csrftoken;
+  if (!token) throw new Error("Could not obtain a CSRF token");
+  return token;
+}
+
 interface CategoryMember {
   pageid: number;
   title: string;
@@ -51,6 +101,7 @@ interface CategoryMember {
 interface CategoryInfo {
   files?: number;
   subcats?: number;
+  wikibaseItem?: string;
 }
 
 interface QueryPage {
@@ -85,7 +136,7 @@ async function listSubcategoryTitles(category: string): Promise<string[]> {
   return titles;
 }
 
-/** Fetch categoryinfo (file/subcat counts) for up to 50 category titles. */
+/** Fetch categoryinfo (file/subcat counts) + Wikidata item for up to 50 category titles. */
 async function fetchCategoryInfo(
   titles: string[],
 ): Promise<Map<string, CategoryInfo>> {
@@ -98,11 +149,15 @@ async function fetchCategoryInfo(
     const data = (await apiGet(COMMONS_API, {
       action: "query",
       titles: batch.join("|"),
-      prop: "categoryinfo",
+      prop: "categoryinfo|pageprops",
+      ppprop: "wikibase_item",
     })) as { query?: { pages?: QueryPage[] } };
 
     for (const page of data.query?.pages ?? []) {
-      result.set(page.title, page.categoryinfo ?? {});
+      result.set(page.title, {
+        ...page.categoryinfo,
+        wikibaseItem: page.pageprops?.wikibase_item,
+      });
     }
   }
   return result;
@@ -228,14 +283,25 @@ export async function getCategoryChildren(
 
   const infoMap = await fetchCategoryInfo(subcatTitles);
 
+  const subcatQids = [
+    ...new Set(
+      [...infoMap.values()]
+        .map((info) => info.wikibaseItem)
+        .filter((id): id is string => id != null),
+    ),
+  ];
+  const subcatLabels = await fetchWikidataLabels(subcatQids, lang);
+
   const subcategories: Subcategory[] = subcatTitles
     .map((title) => {
       const info = infoMap.get(title);
+      const qid = info?.wikibaseItem ?? null;
       return {
         title,
         name: stripCategoryPrefix(title),
         files: info?.files ?? null,
         subcats: info?.subcats ?? null,
+        wikidata: qid ? { id: qid, label: subcatLabels.get(qid) ?? null } : null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -547,4 +613,69 @@ export async function getFileDetail(
     coordinates,
     depicts,
   };
+}
+
+interface EditResponse {
+  edit?: { result?: string; nochange?: boolean };
+  error?: { code?: string; info?: string };
+}
+
+/**
+ * Patch a single language's description in the {{Information}} template on
+ * a file page. Throws if the page doesn't have that template/param in the
+ * expected shape — callers should fall back to "edit on Commons" in that
+ * case rather than guessing at a rewrite.
+ */
+export async function editFileDescription(
+  title: string,
+  lang: string,
+  value: string,
+): Promise<void> {
+  const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
+
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    titles: fileTitle,
+    prop: "revisions",
+    rvprop: "content|timestamp",
+    rvslots: "main",
+  })) as {
+    query?: {
+      pages?: {
+        pageid?: number;
+        revisions?: { timestamp?: string; slots?: { main?: { content?: string } } }[];
+      }[];
+    };
+  };
+
+  const page = data.query?.pages?.[0];
+  const revision = page?.revisions?.[0];
+  const wikitext = revision?.slots?.main?.content;
+  if (page?.pageid == null || wikitext == null) {
+    throw new Error("File not found");
+  }
+
+  const updated = withUpdatedDescription(wikitext, lang, value);
+  if (updated == null) {
+    throw new Error(
+      "This page's description isn't in a format WCE can edit in place — use 'Edit on Commons'.",
+    );
+  }
+
+  const token = await getCsrfToken();
+  const result = (await apiPost(COMMONS_API, {
+    action: "edit",
+    title: fileTitle,
+    text: updated,
+    summary: "Update description via WCE",
+    basetimestamp: revision?.timestamp,
+    token,
+  })) as EditResponse;
+
+  if (result.error) {
+    throw new Error(result.error.info ?? result.error.code ?? "Edit failed");
+  }
+  if (result.edit?.result !== "Success") {
+    throw new Error("Edit failed");
+  }
 }

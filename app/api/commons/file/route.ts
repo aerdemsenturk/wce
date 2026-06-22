@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getFileDetail } from "@/lib/mediawiki";
+import { editFileDescription, getFileDetail } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
 
 // Server-side proxy for read-only Commons file detail.
@@ -23,6 +23,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
     return NextResponse.json(detail);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upstream error";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+// v2 write path: patch a single language's description in place.
+// PATCH /api/commons/file  { title, lang, value }
+export async function PATCH(request: NextRequest) {
+  const body = (await request.json().catch(() => null)) as {
+    title?: string;
+    lang?: string;
+    value?: string;
+  } | null;
+
+  const title = body?.title?.trim();
+  const lang = body?.lang?.trim();
+  const value = body?.value;
+
+  if (!title || !lang || typeof value !== "string") {
+    return NextResponse.json(
+      { error: "Missing 'title', 'lang', or 'value'" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await editFileDescription(title, lang, value);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });

@@ -8,6 +8,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import ResizablePanel from "@/components/layout/ResizablePanel";
 import ExternalLink from "@/components/ui/ExternalLink";
 import LicenseBadge from "@/components/ui/LicenseBadge";
+import DescriptionField from "./DescriptionField";
 import EditLinks from "./EditLinks";
 import LocationSection from "./LocationSection";
 import DepictsList from "./DepictsList";
@@ -106,22 +107,13 @@ function DetailContent({ title }: { title: string }) {
             )}
 
             <Field label={t("description")}>
-              {detail.descriptions.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {detail.descriptions.map((d, i) => (
-                    <li key={`${d.lang}-${i}`} className="flex gap-2 text-sm">
-                      {d.lang !== "und" && (
-                        <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1 text-[10px] font-semibold uppercase text-slate-500">
-                          {d.lang}
-                        </span>
-                      )}
-                      <span className="text-slate-700">{d.value}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty />
-              )}
+              <DescriptionField
+                title={detail.title}
+                descriptions={detail.descriptions}
+                onSaved={(next) =>
+                  setDetail((prev) => (prev ? { ...prev, descriptions: next } : prev))
+                }
+              />
             </Field>
 
             <div className="grid grid-cols-2 gap-4">

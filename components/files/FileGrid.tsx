@@ -2,9 +2,14 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
-import { getCategoryGridCached, fetchSearchFiles } from "@/lib/api";
-import type { CategoryFileInfo } from "@/lib/types";
+import {
+  getCategoryGridCached,
+  getCategoryChildrenCached,
+  fetchSearchFiles,
+} from "@/lib/api";
+import type { CategoryFileInfo, Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import CategoryCard from "./CategoryCard";
 import FileCard from "./FileCard";
 import FilterBar from "./FilterBar";
 import SearchBanner from "./SearchBanner";
@@ -23,10 +28,33 @@ export default function FileGrid() {
   const { current, search } = useBrowser();
 
   const [files, setFiles] = useState<CategoryFileInfo[] | null>(null);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<SortKey>("name");
+
+  // Subcategories are shown as items alongside files, but aren't subject to
+  // the file filter/sort bar — load them separately, skipped during search.
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (!current || search) {
+        setSubcategories([]);
+        return;
+      }
+      try {
+        const data = await getCategoryChildrenCached(current, locale);
+        if (active) setSubcategories(data.subcategories);
+      } catch {
+        if (active) setSubcategories([]);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [current, search, locale]);
 
   useEffect(() => {
     let active = true;
@@ -104,7 +132,7 @@ export default function FileGrid() {
         onSort={setSort}
       />
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && subcategories.length === 0 ? (
         <p className="py-16 text-center text-sm text-slate-400">
           {t("fileCount", { count: 0 })}
         </p>
@@ -119,6 +147,9 @@ export default function FileGrid() {
               "repeat(auto-fill, minmax(max(160px, 100% / 6), 1fr))",
           }}
         >
+          {subcategories.map((subcat) => (
+            <CategoryCard key={subcat.title} subcat={subcat} />
+          ))}
           {visible.map((file) => (
             <FileCard key={file.pageid} file={file} />
           ))}

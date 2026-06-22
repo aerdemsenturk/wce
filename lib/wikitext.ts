@@ -1,5 +1,6 @@
-// Read-only parsing of the {{Information}} and {{Location}} templates from a
-// file's wikitext. v2 will extend this module to patch fields in place.
+// Parsing of the {{Information}} and {{Location}} templates from a file's
+// wikitext, plus position-aware helpers (below) to patch a single field
+// in place without disturbing the rest of the page.
 
 export interface LangText {
   lang: string;
@@ -49,10 +50,14 @@ export function stripHtml(input: string): string {
 }
 
 /**
- * Find the body of a template by name, brace-aware (handles nesting).
- * Returns the text between the template name and its closing "}}".
+ * Find the absolute [start, end) range of a template's body by name,
+ * brace-aware (handles nesting). The range covers the text between the
+ * template name and its closing "}}" (exclusive of both brace pairs).
  */
-function extractTemplateBody(text: string, name: string): string | null {
+function findTemplateBodyRange(
+  text: string,
+  name: string,
+): { start: number; end: number } | null {
   const re = new RegExp(`\\{\\{\\s*${name}\\b`, "i");
   const m = re.exec(text);
   if (!m) return null;
@@ -73,16 +78,29 @@ function extractTemplateBody(text: string, name: string): string | null {
     }
     i++;
   }
-  // bodyStart..(i-2) is the content between {{...}}
-  return text.slice(bodyStart, i - 2);
+  return { start: bodyStart, end: i - 2 };
 }
 
-/** Split a template body into top-level "|" segments (brace/bracket aware). */
-function splitTopLevel(body: string): string[] {
-  const parts: string[] = [];
+/** Find the body of a template by name, brace-aware (handles nesting). */
+function extractTemplateBody(text: string, name: string): string | null {
+  const range = findTemplateBodyRange(text, name);
+  return range ? text.slice(range.start, range.end) : null;
+}
+
+/**
+ * Split a template body into top-level "|" segments (brace/bracket aware),
+ * keeping each segment's absolute [start, end) range in `text` so callers
+ * can splice a replacement back in without touching the rest of the page.
+ */
+function splitTopLevelWithOffsets(
+  body: string,
+  baseOffset: number,
+): { text: string; start: number; end: number }[] {
+  const parts: { text: string; start: number; end: number }[] = [];
   let depthCurly = 0;
   let depthSquare = 0;
   let current = "";
+  let segStart = baseOffset;
   for (let i = 0; i < body.length; i++) {
     const c = body[i];
     const next = body[i + 1];
@@ -111,14 +129,20 @@ function splitTopLevel(body: string): string[] {
       continue;
     }
     if (c === "|" && depthCurly === 0 && depthSquare === 0) {
-      parts.push(current);
+      parts.push({ text: current, start: segStart, end: baseOffset + i });
       current = "";
+      segStart = baseOffset + i + 1;
       continue;
     }
     current += c;
   }
-  parts.push(current);
+  parts.push({ text: current, start: segStart, end: baseOffset + body.length });
   return parts;
+}
+
+/** Split a template body into top-level "|" segments (brace/bracket aware). */
+function splitTopLevel(body: string): string[] {
+  return splitTopLevelWithOffsets(body, 0).map((p) => p.text);
 }
 
 /** Parse named params from a template body (first segment is the name). */
@@ -214,4 +238,96 @@ export function parseInformation(text: string): ParsedInformation {
     permission,
     coordinates: parseLocation(text),
   };
+}
+
+/** Find the absolute [start, end) range of the {{Information}} `description`
+ * parameter's value, or null if the template/param isn't present in the
+ * expected shape (caller should fall back to "edit on Commons"). */
+function findDescriptionValueRange(
+  text: string,
+): { start: number; end: number } | null {
+  const bodyRange = findTemplateBodyRange(text, "Information");
+  if (!bodyRange) return null;
+  const body = text.slice(bodyRange.start, bodyRange.end);
+  const segments = splitTopLevelWithOffsets(body, bodyRange.start);
+
+  // segments[0] is the template name; skip it.
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    const eq = seg.text.indexOf("=");
+    if (eq === -1) continue;
+    const key = seg.text.slice(0, eq).trim().toLowerCase();
+    if (key !== "description") continue;
+    return { start: seg.start + eq + 1, end: seg.end };
+  }
+  return null;
+}
+
+/** Find the absolute [start, end) range of an existing {{lang|...}} block
+ * within a description value, or null if that language isn't present yet. */
+function findLangBlockRange(
+  value: string,
+  lang: string,
+): { start: number; end: number } | null {
+  const re = new RegExp(`\\{\\{\\s*${lang}\\s*\\|`, "i");
+  const m = re.exec(value);
+  if (!m) return null;
+
+  let i = m.index + 2;
+  let depth = 1;
+  while (i < value.length && depth > 0) {
+    if (value[i] === "{" && value[i + 1] === "{") {
+      depth++;
+      i += 2;
+      continue;
+    }
+    if (value[i] === "}" && value[i + 1] === "}") {
+      depth--;
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  return { start: m.index, end: i };
+}
+
+/** Escape "|" so it can't be mistaken for a template/param separator. */
+function escapeForTemplateParam(value: string): string {
+  return value.replace(/\|/g, "{{!}}");
+}
+
+/**
+ * Patch a single language's description in place, leaving every other part
+ * of the wikitext (other languages, date/author/source/permission, location,
+ * categories) untouched. Returns null if the page doesn't have a
+ * `{{Information|description=...}}` block to patch.
+ */
+export function withUpdatedDescription(
+  wikitext: string,
+  lang: string,
+  newValue: string,
+): string | null {
+  const range = findDescriptionValueRange(wikitext);
+  if (!range) return null;
+
+  const value = wikitext.slice(range.start, range.end);
+  const escaped = escapeForTemplateParam(newValue.trim());
+
+  let newSegment: string;
+  if (lang === "und") {
+    // No per-language template was found when parsing — the whole value is
+    // the (single) description; replace it wholesale.
+    newSegment = ` ${escaped}\n`;
+  } else {
+    const langRange = findLangBlockRange(value, lang);
+    const block = `{{${lang}|1=${escaped}}}`;
+    if (langRange) {
+      newSegment =
+        value.slice(0, langRange.start) + block + value.slice(langRange.end);
+    } else {
+      newSegment = `${value.replace(/\s+$/, "")}\n${block}\n`;
+    }
+  }
+
+  return wikitext.slice(0, range.start) + newSegment + wikitext.slice(range.end);
 }

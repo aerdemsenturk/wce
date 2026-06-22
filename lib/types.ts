@@ -9,6 +9,8 @@ export interface Subcategory {
   files: number | null;
   /** Number of subcategories (null if unknown) */
   subcats: number | null;
+  /** Linked Wikidata item, if any (null if none or not yet resolved) */
+  wikidata: CategoryWikidata | null;
 }
 
 export interface CategoryWikidata {

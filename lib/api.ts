@@ -86,6 +86,27 @@ export function getFileDetailCached(
   return entry;
 }
 
+/** Patch a single language's description on a file page (v2 write path). */
+export async function updateFileDescription(
+  title: string,
+  lang: string,
+  value: string,
+): Promise<void> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, lang, value }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `update ${res.status}`);
+  }
+  // Force a refetch next time this file is opened, across all locales.
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+}
+
 export async function fetchSearchFiles(
   query: string,
   category: string | null,
