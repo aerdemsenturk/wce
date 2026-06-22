@@ -1,6 +1,8 @@
 // Shared drag-and-drop payload for moving a file or subcategory into a
 // different category (HTML5 DnD, used by FileCard, CategoryCard, CategoryNode).
 
+import type { CategoryFileInfo, Subcategory } from "./types";
+
 const MIME = "application/x-wce-dnd";
 
 export interface DragPayload {
@@ -8,6 +10,11 @@ export interface DragPayload {
   pageTitle: string;
   /** The category it currently lives directly under. */
   fromCategory: string;
+  kind: "file" | "category";
+  /** Snapshot of the dragged item, so the drop target can show it in its
+   * pending-move overlay without a server round-trip. */
+  file?: CategoryFileInfo;
+  subcat?: Subcategory;
 }
 
 export function setDragPayload(e: React.DragEvent, payload: DragPayload): void {

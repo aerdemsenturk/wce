@@ -19,7 +19,7 @@ export default function FileCard({ file }: { file: CategoryFileInfo }) {
       draggable
       onDragStart={(e) => {
         if (!current) return;
-        setDragPayload(e, { pageTitle: file.title, fromCategory: current });
+        setDragPayload(e, { pageTitle: file.title, fromCategory: current, kind: "file", file });
       }}
       onClick={() => selectFile(file)}
       className={`group relative flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${

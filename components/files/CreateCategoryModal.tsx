@@ -2,27 +2,27 @@
 
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { createCategoryFromSelection } from "@/lib/api";
+import type { CategoryFileInfo } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 
 export default function CreateCategoryModal({
   parentCategory,
-  fileTitles,
+  files,
   onClose,
 }: {
   parentCategory: string;
-  fileTitles: string[];
+  files: CategoryFileInfo[];
   onClose: () => void;
 }) {
   const t = useTranslations("merge");
   const titleId = useId();
-  const { path, selectPath, clearSelected, bumpVersion, showToast } = useBrowser();
+  const { path, selectPath, clearSelected, addChange, showToast } = useBrowser();
 
   const [name, setName] = useState("");
   const [qid, setQid] = useState("");
-  const [included, setIncluded] = useState<Set<string>>(new Set(fileTitles));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [included, setIncluded] = useState<Set<string>>(
+    new Set(files.map((f) => f.title)),
+  );
 
   function toggle(title: string) {
     setIncluded((prev) => {
@@ -33,38 +33,22 @@ export default function CreateCategoryModal({
     });
   }
 
-  async function submit() {
+  function submit() {
     const cleanName = name.trim();
     if (!cleanName || included.size === 0) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const result = await createCategoryFromSelection(
-        cleanName,
-        parentCategory,
-        [...included],
-        qid.trim() || undefined,
-      );
-      bumpVersion();
-      clearSelected();
-      if (result.failed.length > 0) {
-        showToast({
-          message: t("partialSuccess", {
-            moved: result.moved.length,
-            failed: result.failed.length,
-          }),
-          tone: "error",
-        });
-      } else {
-        showToast({ message: t("success", { name: cleanName }), tone: "success" });
-      }
-      selectPath([...path, cleanName]);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("error"));
-    } finally {
-      setSubmitting(false);
-    }
+    addChange({
+      id: crypto.randomUUID(),
+      type: "createCategory",
+      name: cleanName,
+      parentCategory,
+      wikidataQid: qid.trim() || undefined,
+      files: files.filter((f) => included.has(f.title)),
+      label: t("createLabel", { name: cleanName, count: included.size }),
+    });
+    clearSelected();
+    showToast({ message: t("queued", { name: cleanName }), tone: "success" });
+    selectPath([...path, cleanName]);
+    onClose();
   }
 
   return (
@@ -115,40 +99,35 @@ export default function CreateCategoryModal({
             {t("itemsLabel", { count: included.size })}
           </p>
           <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border-base p-2">
-            {fileTitles.map((title) => (
-              <li key={title} className="flex items-center gap-2 text-sm">
+            {files.map((f) => (
+              <li key={f.title} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={included.has(title)}
-                  onChange={() => toggle(title)}
+                  checked={included.has(f.title)}
+                  onChange={() => toggle(f.title)}
                   className="shrink-0"
                 />
-                <span className="truncate text-slate-700">
-                  {title.replace(/^File:/i, "")}
-                </span>
+                <span className="truncate text-slate-700">{f.name}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        {error && <p className="text-xs text-red-500">{error}</p>}
-
         <div className="flex justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={onClose}
-            disabled={submitting}
             className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100"
           >
             {t("cancel")}
           </button>
           <button
             type="button"
-            onClick={() => void submit()}
-            disabled={submitting || !name.trim() || included.size === 0}
+            onClick={submit}
+            disabled={!name.trim() || included.size === 0}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
           >
-            {submitting ? t("creating") : t("create")}
+            {t("create")}
           </button>
         </div>
       </div>

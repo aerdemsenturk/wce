@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { updateFileDescription } from "@/lib/api";
 import type { LangText } from "@/lib/types";
+import { useBrowser } from "@/components/browser/BrowserProvider";
 
 export default function DescriptionField({
   title,
@@ -15,10 +15,9 @@ export default function DescriptionField({
   onSaved: (next: LangText[]) => void;
 }) {
   const t = useTranslations("detail");
+  const { addChange } = useBrowser();
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(false);
 
   if (descriptions.length === 0) {
     return <span className="text-sm text-slate-300">—</span>;
@@ -27,24 +26,21 @@ export default function DescriptionField({
   function startEdit(index: number) {
     setEditingIndex(index);
     setDraft(descriptions[index].value);
-    setError(false);
   }
 
-  async function save(index: number) {
-    setSaving(true);
-    setError(false);
-    try {
-      await updateFileDescription(title, descriptions[index].lang, draft);
-      const next = descriptions.map((d, i) =>
-        i === index ? { ...d, value: draft.trim() } : d,
-      );
-      onSaved(next);
-      setEditingIndex(null);
-    } catch {
-      setError(true);
-    } finally {
-      setSaving(false);
-    }
+  function save(index: number) {
+    const value = draft.trim();
+    addChange({
+      id: crypto.randomUUID(),
+      type: "description",
+      fileTitle: title,
+      lang: descriptions[index].lang,
+      newValue: value,
+      label: t("descriptionChangeLabel", { name: title.replace(/^File:/i, "") }),
+    });
+    const next = descriptions.map((d, i) => (i === index ? { ...d, value } : d));
+    onSaved(next);
+    setEditingIndex(null);
   }
 
   return (
@@ -66,19 +62,16 @@ export default function DescriptionField({
                 rows={3}
                 className="w-full rounded-md border border-border-base bg-background px-2 py-1.5 text-sm outline-none focus:border-slate-400"
               />
-              {error && <p className="text-xs text-red-500">{t("saveError")}</p>}
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  disabled={saving}
-                  onClick={() => void save(i)}
-                  className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+                  onClick={() => save(i)}
+                  className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white"
                 >
-                  {saving ? t("saving") : t("save")}
+                  {t("save")}
                 </button>
                 <button
                   type="button"
-                  disabled={saving}
                   onClick={() => setEditingIndex(null)}
                   className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
                 >

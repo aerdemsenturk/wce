@@ -13,10 +13,23 @@ import {
 const ROOT_STORAGE_KEY = "wce:root-category";
 
 import type { CategoryFileInfo } from "@/lib/types";
+import type { PendingChange } from "@/lib/pendingChanges";
+import {
+  updateFileDescription,
+  moveCategoryMembership,
+  createCategoryFromSelection,
+} from "@/lib/api";
 
 export interface Toast {
   message: string;
   tone: "error" | "success";
+}
+
+export interface PublishResult {
+  changeId: string;
+  label: string;
+  status: "success" | "skipped";
+  message?: string;
 }
 
 interface BrowserState {
@@ -52,6 +65,18 @@ interface BrowserState {
   /** Whether the "merge selection into new category" modal is open. */
   mergeModalOpen: boolean;
   setMergeModalOpen: (open: boolean) => void;
+  /** Changes queued locally but not yet written to Commons. */
+  pendingChanges: PendingChange[];
+  addChange: (change: PendingChange) => void;
+  undo: () => void;
+  redo: () => void;
+  redoCount: number;
+  publishing: boolean;
+  /** Writes every pending change to Commons in order; a change that hits a
+   * real edit conflict (or other failure) is skipped, not retried. */
+  publishAll: () => Promise<void>;
+  publishResults: PublishResult[] | null;
+  clearPublishResults: () => void;
 }
 
 const Ctx = createContext<BrowserState | null>(null);
@@ -78,6 +103,10 @@ export default function BrowserProvider({
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const [redoStack, setRedoStack] = useState<PendingChange[]>([]);
+  const [publishing, setPublishing] = useState(false);
+  const [publishResults, setPublishResults] = useState<PublishResult[] | null>(null);
 
   // Restore the last root from localStorage on first mount. This must run in
   // an effect (not a lazy initializer) so server and client render the same
@@ -155,6 +184,79 @@ export default function BrowserProvider({
 
   const bumpVersion = useCallback(() => setVersion((v) => v + 1), []);
 
+  const addChange = useCallback(
+    (change: PendingChange) => {
+      setPendingChanges((prev) => [...prev, change]);
+      setRedoStack([]);
+      bumpVersion();
+    },
+    [bumpVersion],
+  );
+
+  const undo = useCallback(() => {
+    setPendingChanges((prev) => {
+      if (prev.length === 0) return prev;
+      setRedoStack((redo) => [...redo, prev[prev.length - 1]]);
+      return prev.slice(0, -1);
+    });
+    bumpVersion();
+  }, [bumpVersion]);
+
+  const redo = useCallback(() => {
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev[prev.length - 1];
+      setPendingChanges((changes) => [...changes, next]);
+      return prev.slice(0, -1);
+    });
+    bumpVersion();
+  }, [bumpVersion]);
+
+  const publishAll = useCallback(async () => {
+    setPublishing(true);
+    const results: PublishResult[] = [];
+    for (const change of pendingChanges) {
+      try {
+        if (change.type === "description") {
+          await updateFileDescription(change.fileTitle, change.lang, change.newValue);
+        } else if (change.type === "move") {
+          await moveCategoryMembership(change.pageTitle, change.fromCategory, change.toCategory);
+        } else {
+          const result = await createCategoryFromSelection(
+            change.name,
+            change.parentCategory,
+            change.files.map((f) => f.title),
+            change.wikidataQid,
+          );
+          if (result.failed.length > 0) {
+            results.push({
+              changeId: change.id,
+              label: change.label,
+              status: "skipped",
+              message: result.failed.map((f) => f.title).join(", "),
+            });
+            continue;
+          }
+        }
+        results.push({ changeId: change.id, label: change.label, status: "success" });
+      } catch (err) {
+        results.push({
+          changeId: change.id,
+          label: change.label,
+          status: "skipped",
+          message: err instanceof Error ? err.message : undefined,
+        });
+      }
+    }
+    setPendingChanges([]);
+    setRedoStack([]);
+    setPublishResults(results);
+    setPublishing(false);
+    setVersion((v) => v + 1);
+  }, [pendingChanges]);
+
+  const clearPublishResults = useCallback(() => setPublishResults(null), []);
+
   const showToast = useCallback((next: Toast) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(next);
@@ -183,6 +285,15 @@ export default function BrowserProvider({
       showToast,
       mergeModalOpen,
       setMergeModalOpen,
+      pendingChanges,
+      addChange,
+      undo,
+      redo,
+      redoCount: redoStack.length,
+      publishing,
+      publishAll,
+      publishResults,
+      clearPublishResults,
     }),
     [
       root,
@@ -203,6 +314,15 @@ export default function BrowserProvider({
       toast,
       showToast,
       mergeModalOpen,
+      pendingChanges,
+      addChange,
+      undo,
+      redo,
+      redoStack,
+      publishing,
+      publishAll,
+      publishResults,
+      clearPublishResults,
     ],
   );
 

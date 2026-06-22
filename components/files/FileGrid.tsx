@@ -7,6 +7,7 @@ import {
   getCategoryChildrenCached,
   fetchSearchFiles,
 } from "@/lib/api";
+import { overlaySubcategories, overlayFiles, syntheticFilesFor } from "@/lib/pendingChanges";
 import type { CategoryFileInfo, Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import CategoryCard from "./CategoryCard";
@@ -26,8 +27,15 @@ export default function FileGrid() {
   const t = useTranslations("sidebar");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { current, search, selected, mergeModalOpen, setMergeModalOpen, version } =
-    useBrowser();
+  const {
+    current,
+    search,
+    selected,
+    mergeModalOpen,
+    setMergeModalOpen,
+    version,
+    pendingChanges,
+  } = useBrowser();
 
   const [files, setFiles] = useState<CategoryFileInfo[] | null>(null);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -47,7 +55,9 @@ export default function FileGrid() {
       }
       try {
         const data = await getCategoryChildrenCached(current, locale);
-        if (active) setSubcategories(data.subcategories);
+        if (active) {
+          setSubcategories(overlaySubcategories(current, data.subcategories, pendingChanges));
+        }
       } catch {
         if (active) setSubcategories([]);
       }
@@ -56,6 +66,7 @@ export default function FileGrid() {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure, re-runs on version bump
   }, [current, search, locale, version]);
 
   useEffect(() => {
@@ -69,9 +80,15 @@ export default function FileGrid() {
       setError(false);
       setFilter("all");
       try {
-        const data = search
-          ? await fetchSearchFiles(search, current, locale)
-          : await getCategoryGridCached(current!, locale);
+        let data: CategoryFileInfo[];
+        if (search) {
+          data = await fetchSearchFiles(search, current, locale);
+        } else {
+          const synthetic = syntheticFilesFor(current!, pendingChanges);
+          data =
+            synthetic ??
+            overlayFiles(current!, await getCategoryGridCached(current!, locale), pendingChanges);
+        }
         if (active) setFiles(data);
       } catch {
         if (active) setError(true);
@@ -83,6 +100,7 @@ export default function FileGrid() {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure, re-runs on version bump
   }, [current, search, locale, version]);
 
   const counts = useMemo(
@@ -161,7 +179,7 @@ export default function FileGrid() {
       {mergeModalOpen && current && (
         <CreateCategoryModal
           parentCategory={current}
-          fileTitles={[...selected]}
+          files={(files ?? []).filter((f) => selected.has(f.title))}
           onClose={() => setMergeModalOpen(false)}
         />
       )}

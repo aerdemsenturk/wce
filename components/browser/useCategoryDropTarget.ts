@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { moveCategoryMembership } from "@/lib/api";
 import { readDragPayload, hasDragPayload } from "@/lib/dnd";
 import { useBrowser } from "./BrowserProvider";
 
 /** Makes any element a drop target that accepts a dragged file or
- * subcategory and moves it under `toCategory`. */
+ * subcategory and queues a move into `toCategory` (not written to Commons
+ * until the user hits Publish). */
 export function useCategoryDropTarget(toCategory: string) {
   const t = useTranslations("dnd");
-  const { showToast, bumpVersion } = useBrowser();
+  const { showToast, addChange } = useBrowser();
   const [isOver, setIsOver] = useState(false);
 
   function onDragOver(e: React.DragEvent) {
@@ -23,23 +23,26 @@ export function useCategoryDropTarget(toCategory: string) {
     setIsOver(false);
   }
 
-  async function onDrop(e: React.DragEvent) {
+  function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsOver(false);
     const payload = readDragPayload(e);
     if (!payload) return;
     if (payload.fromCategory === toCategory) return;
 
-    try {
-      await moveCategoryMembership(payload.pageTitle, payload.fromCategory, toCategory);
-      bumpVersion();
-      showToast({ message: t("moveSuccess", { target: toCategory }), tone: "success" });
-    } catch (err) {
-      showToast({
-        message: err instanceof Error ? err.message : t("moveError"),
-        tone: "error",
-      });
-    }
+    const name = payload.kind === "file" ? payload.file?.name : payload.subcat?.name;
+    addChange({
+      id: crypto.randomUUID(),
+      type: "move",
+      pageTitle: payload.pageTitle,
+      fromCategory: payload.fromCategory,
+      toCategory,
+      kind: payload.kind,
+      file: payload.file,
+      subcat: payload.subcat,
+      label: t("moveLabel", { name: name ?? payload.pageTitle, target: toCategory }),
+    });
+    showToast({ message: t("moveQueued", { target: toCategory }), tone: "success" });
   }
 
   return { isOver, onDragOver, onDragLeave, onDrop };

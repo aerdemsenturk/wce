@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getFileDetailCached } from "@/lib/api";
+import { overlayDescriptions, overlayCategories } from "@/lib/pendingChanges";
 import type { FileDetail } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import ResizablePanel from "@/components/layout/ResizablePanel";
@@ -34,7 +35,7 @@ function DetailContent({ title }: { title: string }) {
   const t = useTranslations("detail");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { selectFile, setRoot } = useBrowser();
+  const { selectFile, setRoot, pendingChanges } = useBrowser();
 
   const [detail, setDetail] = useState<FileDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,13 @@ function DetailContent({ title }: { title: string }) {
       setError(false);
       try {
         const data = await getFileDetailCached(title, locale);
-        if (active) setDetail(data);
+        if (active) {
+          setDetail({
+            ...data,
+            descriptions: overlayDescriptions(title, data.descriptions, pendingChanges),
+            categories: overlayCategories(title, data.categories, pendingChanges),
+          });
+        }
       } catch {
         if (active) setError(true);
       } finally {
@@ -58,6 +65,7 @@ function DetailContent({ title }: { title: string }) {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure
   }, [title, locale]);
 
   return (

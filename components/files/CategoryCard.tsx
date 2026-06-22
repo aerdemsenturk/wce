@@ -23,6 +23,8 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
         setDragPayload(e, {
           pageTitle: withCategoryPrefix(subcat.name),
           fromCategory: current,
+          kind: "category",
+          subcat,
         });
       }}
       onDragOver={onDragOver}

@@ -5,8 +5,10 @@
   },
   "header": {
     "searchPlaceholder": "Search files…",
-    "v2Badge": "Editing coming soon",
-    "v2Tooltip": "v2: full editing with Wikimedia login",
+    "undo": "Undo",
+    "redo": "Redo",
+    "publish": "Publish ({count})",
+    "publishing": "Publishing…",
     "language": "Language"
   },
   "sidebar": {
@@ -48,8 +50,7 @@
     "edit": "Edit",
     "save": "Save",
     "cancel": "Cancel",
-    "saving": "Saving…",
-    "saveError": "Couldn't save — try \"Edit on Commons\" instead.",
+    "descriptionChangeLabel": "{name}: description updated",
     "description": "Description",
     "date": "Date",
     "author": "Author",
@@ -73,8 +74,8 @@
     "newTab": "opens in a new tab"
   },
   "dnd": {
-    "moveSuccess": "Moved to {target}",
-    "moveError": "Couldn't move — try again or edit on Commons."
+    "moveQueued": "Will move to {target} (not published yet)",
+    "moveLabel": "{name}: moved to {target}"
   },
   "rename": {
     "edit": "Rename",
@@ -98,9 +99,12 @@
     "itemsLabel": "{count, plural, one {# item included} other {# items included}}",
     "cancel": "Cancel",
     "create": "Create",
-    "creating": "Creating…",
-    "success": "Created {name}",
-    "partialSuccess": "Created the category — moved {moved}, but {failed} couldn't be moved",
-    "error": "Couldn't create the category"
+    "queued": "{name} will be created (not published yet)",
+    "createLabel": "Created {name} ({count} files)"
+  },
+  "publish": {
+    "title": "Publish results",
+    "skipped": "conflicted, skipped",
+    "close": "Close"
   }
 }

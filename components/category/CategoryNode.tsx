@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
+import { overlaySubcategories, syntheticChildrenFor } from "@/lib/pendingChanges";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
@@ -29,7 +30,7 @@ export default function CategoryNode({
 }: CategoryNodeProps) {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { path: activePath, selectPath, version } = useBrowser();
+  const { path: activePath, selectPath, version, pendingChanges } = useBrowser();
   const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(name);
 
   const [expanded, setExpanded] = useState(false);
@@ -50,8 +51,13 @@ export default function CategoryNode({
   useEffect(() => {
     if (!expanded) return;
     let active = true;
+    const synthetic = syntheticChildrenFor(name, pendingChanges);
+    if (synthetic) {
+      Promise.resolve().then(() => active && setChildren(synthetic));
+      return;
+    }
     getCategoryChildrenCached(name, locale).then((data) => {
-      if (active) setChildren(data.subcategories);
+      if (active) setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
     });
     return () => {
       active = false;
@@ -63,8 +69,13 @@ export default function CategoryNode({
     setLoading(true);
     setError(false);
     try {
+      const synthetic = syntheticChildrenFor(name, pendingChanges);
+      if (synthetic) {
+        setChildren(synthetic);
+        return;
+      }
       const data = await getCategoryChildrenCached(name, locale);
-      setChildren(data.subcategories);
+      setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
     } catch {
       setError(true);
       setExpanded(false);
@@ -107,7 +118,18 @@ export default function CategoryNode({
         draggable={parent != null}
         onDragStart={(e) => {
           if (!parent) return;
-          setDragPayload(e, { pageTitle: withCategoryPrefix(name), fromCategory: parent });
+          setDragPayload(e, {
+            pageTitle: withCategoryPrefix(name),
+            fromCategory: parent,
+            kind: "category",
+            subcat: {
+              title: withCategoryPrefix(name),
+              name,
+              files,
+              subcats,
+              wikidata: null,
+            },
+          });
         }}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}

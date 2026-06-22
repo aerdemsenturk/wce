@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
+import { syntheticChildrenFor } from "@/lib/pendingChanges";
 import type { CategoryWikidata } from "@/lib/types";
 import { wikidataNewItemUrl } from "@/lib/category";
 import { useBrowser } from "@/components/browser/BrowserProvider";
@@ -10,7 +11,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 export default function WikidataBadge() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { current } = useBrowser();
+  const { current, pendingChanges } = useBrowser();
   const [wikidata, setWikidata] = useState<CategoryWikidata | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -19,6 +20,13 @@ export default function WikidataBadge() {
     const load = async () => {
       if (!current) return;
       setLoaded(false);
+      // A category queued for creation doesn't exist on Commons yet — skip
+      // the network call rather than letting it 404.
+      if (syntheticChildrenFor(current, pendingChanges)) {
+        setWikidata(null);
+        setLoaded(true);
+        return;
+      }
       try {
         const data = await getCategoryChildrenCached(current, locale);
         if (active) {
@@ -33,6 +41,7 @@ export default function WikidataBadge() {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure
   }, [current, locale]);
 
   if (!current || !loaded) return null;
