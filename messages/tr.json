@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "WCE",
+    "fullName": "Wikimedia Commons Editör"
+  },
+  "header": {
+    "searchPlaceholder": "Dosya ara…",
+    "v2Badge": "Düzenleme yakında",
+    "v2Tooltip": "v2: Wikimedia girişi ile tam düzenleme",
+    "language": "Dil"
+  },
+  "sidebar": {
+    "title": "Kategoriler",
+    "rootPrompt": "Bir Commons kategorisi adı yazın",
+    "rootPlaceholder": "ör. Lycian Way",
+    "load": "Yükle",
+    "empty": "Henüz kategori seçilmedi",
+    "loading": "Yükleniyor…",
+    "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
+    "noWikidata": "Wikidata bağlantısı yok"
+  },
+  "filters": {
+    "all": "Tümü",
+    "missingDescription": "Açıklama eksik",
+    "missingDate": "Tarih eksik",
+    "missingLocation": "Konum eksik",
+    "uncategorized": "Kategorisiz",
+    "sortLabel": "Sırala",
+    "sortName": "Ada göre",
+    "sortDate": "Yükleme tarihine göre",
+    "sortMissing": "Eksik alan sayısına göre"
+  },
+  "file": {
+    "uploadedYear": "{year} yılında yüklendi",
+    "size": "Boyut",
+    "status": {
+      "description": "Açıklama",
+      "date": "Tarih",
+      "author": "Yazar",
+      "license": "Lisans",
+      "location": "Konum"
+    }
+  },
+  "detail": {
+    "open": "Aç",
+    "close": "Kapat",
+    "description": "Açıklama",
+    "date": "Tarih",
+    "author": "Yazar",
+    "license": "Lisans",
+    "categories": "Kategoriler",
+    "location": "Konum",
+    "depicts": "Konu (Depicts)",
+    "noLocation": "Konum verisi yok",
+    "noDepicts": "Konu verisi yok",
+    "viewOnCommons": "Commons'ta görüntüle",
+    "editOnCommons": "Commons'ta düzenle",
+    "editStructuredData": "Yapısal veriyi düzenle",
+    "addOnCommons": "Commons'ta ekle →",
+    "externalLinkNote": "Harici bağlantı"
+  },
+  "search": {
+    "resultsFor": "“{query}” için sonuçlar",
+    "inCategory": "{category} içinde",
+    "clear": "Aramayı temizle"
+  },
+  "common": {
+    "error": "Bir hata oluştu",
+    "retry": "Tekrar dene",
+    "loading": "Yükleniyor…",
+    "newTab": "yeni sekmede açılır"
+  }
+}

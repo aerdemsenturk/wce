@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "WCE",
+    "fullName": "Wikimedia Commons Editor"
+  },
+  "header": {
+    "searchPlaceholder": "Search files…",
+    "v2Badge": "Editing coming soon",
+    "v2Tooltip": "v2: full editing with Wikimedia login",
+    "language": "Language"
+  },
+  "sidebar": {
+    "title": "Categories",
+    "rootPrompt": "Type a Commons category name",
+    "rootPlaceholder": "e.g. Lycian Way",
+    "load": "Load",
+    "empty": "No category selected yet",
+    "loading": "Loading…",
+    "fileCount": "{count, plural, =0 {no files} one {# file} other {# files}}",
+    "noWikidata": "No Wikidata link"
+  },
+  "filters": {
+    "all": "All",
+    "missingDescription": "Missing description",
+    "missingDate": "Missing date",
+    "missingLocation": "Missing location",
+    "uncategorized": "Uncategorized",
+    "sortLabel": "Sort",
+    "sortName": "By name",
+    "sortDate": "By upload date",
+    "sortMissing": "By missing fields"
+  },
+  "file": {
+    "uploadedYear": "Uploaded in {year}",
+    "size": "Size",
+    "status": {
+      "description": "Description",
+      "date": "Date",
+      "author": "Author",
+      "license": "License",
+      "location": "Location"
+    }
+  },
+  "detail": {
+    "open": "Open",
+    "close": "Close",
+    "description": "Description",
+    "date": "Date",
+    "author": "Author",
+    "license": "License",
+    "categories": "Categories",
+    "location": "Location",
+    "depicts": "Depicts",
+    "noLocation": "No location data",
+    "noDepicts": "No depicts data",
+    "viewOnCommons": "View on Commons",
+    "editOnCommons": "Edit on Commons",
+    "editStructuredData": "Edit structured data",
+    "addOnCommons": "Add on Commons →",
+    "externalLinkNote": "External link"
+  },
+  "search": {
+    "resultsFor": "Results for “{query}”",
+    "inCategory": "in {category}",
+    "clear": "Clear search"
+  },
+  "common": {
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "loading": "Loading…",
+    "newTab": "opens in a new tab"
+  }
+}
