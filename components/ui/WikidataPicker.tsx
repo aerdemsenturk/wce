@@ -34,6 +34,7 @@ export default function WikidataPicker({
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing stale results when the query is emptied, not deriving render state
       setResults([]);
       return;
     }

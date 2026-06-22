@@ -48,6 +48,18 @@ export default function CategoryNode({
   const parent = path.length > 1 ? path[path.length - 2] : null;
   const rowRef = useRef<HTMLDivElement>(null);
 
+  // Follow navigation from the main content area: auto-expand this node when
+  // it sits on the path to the newly active category. Adjusted during render
+  // (React's documented pattern for state derived from a changing prop)
+  // instead of in an effect, so it doesn't trigger an extra cascading render.
+  const [prevIsAncestorOfActive, setPrevIsAncestorOfActive] = useState(isAncestorOfActive);
+  if (isAncestorOfActive !== prevIsAncestorOfActive) {
+    setPrevIsAncestorOfActive(isAncestorOfActive);
+    if (isAncestorOfActive && !expanded) {
+      setExpanded(true);
+    }
+  }
+
   // After a drag-drop move elsewhere invalidates the shared cache, refetch
   // this node's already-expanded children so it reflects the new state.
   useEffect(() => {
@@ -67,43 +79,42 @@ export default function CategoryNode({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only refetch on external version bump
   }, [version]);
 
-  async function load() {
-    setLoading(true);
-    setError(false);
-    try {
-      const synthetic = syntheticChildrenFor(name, pendingChanges);
-      if (synthetic) {
-        setChildren(synthetic);
-        return;
-      }
-      const data = await getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale);
-      setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
-    } catch {
-      setError(true);
-      setExpanded(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function toggle() {
+  function toggle() {
     if (!expandable) return;
-    const next = !expanded;
-    setExpanded(next);
-    if (next && children === null && !loading) {
-      await load();
-    }
+    setExpanded((prev) => !prev);
   }
 
-  // Follow navigation from the main content area: auto-expand this node
-  // when it sits on the path to the newly active category.
+  // Fetch children whenever the node is expanded but hasn't loaded yet —
+  // covers both manual toggle() and the render-phase auto-expand above.
   useEffect(() => {
-    if (isAncestorOfActive && !expanded) {
-      setExpanded(true);
-      if (children === null && !loading) load();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to navigation, not local expand state
-  }, [isAncestorOfActive]);
+    if (!(expanded && children === null && !loading)) return;
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(false);
+      try {
+        const synthetic = syntheticChildrenFor(name, pendingChanges);
+        if (synthetic) {
+          if (active) setChildren(synthetic);
+          return;
+        }
+        const data = await getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale);
+        if (active) setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
+      } catch {
+        if (active) {
+          setError(true);
+          setExpanded(false);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when expanded flips; load() reads latest closures
+  }, [expanded]);
 
   // Scroll the active node into view when it becomes selected via the
   // main content area (clicking into a subcategory, breadcrumb, etc.).

@@ -7,6 +7,37 @@ import type {
 
 // Client-side helpers that call our own server proxy under /api/commons.
 
+const MAX_CACHE_ENTRIES = 300;
+
+/** Map-like cache that evicts the least-recently-used entry once it grows
+ * past `maxSize`, so long browsing sessions don't grow these caches forever. */
+class BoundedCache<V> {
+  private map = new Map<string, V>();
+  constructor(private maxSize = MAX_CACHE_ENTRIES) {}
+  get(key: string): V | undefined {
+    const value = this.map.get(key);
+    if (value !== undefined) {
+      this.map.delete(key);
+      this.map.set(key, value); // refresh recency
+    }
+    return value;
+  }
+  set(key: string, value: V): void {
+    this.map.delete(key);
+    this.map.set(key, value);
+    if (this.map.size > this.maxSize) {
+      const oldest = this.map.keys().next().value;
+      if (oldest !== undefined) this.map.delete(oldest);
+    }
+  }
+  delete(key: string): void {
+    this.map.delete(key);
+  }
+  keys(): IterableIterator<string> {
+    return this.map.keys();
+  }
+}
+
 export async function fetchCategoryChildren(
   category: string,
   lang: string,
@@ -48,7 +79,7 @@ export async function fetchCategoryPreviewThumbs(
   return data.thumbs;
 }
 
-const previewThumbsCache = new Map<string, Promise<string[]>>();
+const previewThumbsCache = new BoundedCache<Promise<string[]>>();
 
 export function getCategoryPreviewThumbsCached(
   category: string,
@@ -66,7 +97,7 @@ export function getCategoryPreviewThumbsCached(
 
 // Module-level cache so re-expanding a node or revisiting a category
 // doesn't refetch within the same session.
-const childrenCache = new Map<string, Promise<CategoryChildren>>();
+const childrenCache = new BoundedCache<Promise<CategoryChildren>>();
 
 export function getCategoryChildrenCached(
   category: string,
@@ -94,7 +125,7 @@ export async function fetchFileDetail(
   return res.json();
 }
 
-const fileDetailCache = new Map<string, Promise<FileDetail>>();
+const fileDetailCache = new BoundedCache<Promise<FileDetail>>();
 
 export function getFileDetailCached(
   title: string,
@@ -382,7 +413,7 @@ export async function fetchSearchFiles(
   return data.files;
 }
 
-const gridCache = new Map<string, Promise<CategoryFileInfo[]>>();
+const gridCache = new BoundedCache<Promise<CategoryFileInfo[]>>();
 
 export function getCategoryGridCached(
   category: string,
