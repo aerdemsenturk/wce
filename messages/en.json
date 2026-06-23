@@ -23,7 +23,8 @@
     "subcatCount": "{count, plural, =0 {no subcategories} one {# subcategory} other {# subcategories}}",
     "noWikidata": "No Wikidata link",
     "addSubcategory": "Add subcategory",
-    "goToParent": "Go to parent: {name}"
+    "goToParent": "Go to parent: {name}",
+    "recent": "Recently visited"
   },
   "filters": {
     "all": "All",

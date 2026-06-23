@@ -14,6 +14,8 @@ const ROOT_STORAGE_KEY = "wce:root-category";
 
 import type { CategoryFileInfo } from "@/lib/types";
 import type { PendingChange } from "@/lib/pendingChanges";
+import { categoryToAppPath, categoryFromPath } from "@/lib/category";
+import { getRecentCategories, pushRecentCategory } from "@/lib/recentCategories";
 import {
   updateFileDescription,
   moveCategoryMembership,
@@ -45,6 +47,8 @@ interface BrowserState {
   path: string[];
   /** Active category name (last segment of path), or null. */
   current: string | null;
+  /** Recently visited category names, most recent first (for the sidebar). */
+  recentCategories: string[];
   setRoot: (name: string) => void;
   clearRoot: () => void;
   /** Select a category by its full path from root. */
@@ -98,11 +102,23 @@ export function useBrowser(): BrowserState {
 
 export default function BrowserProvider({
   children,
+  initialCategory = null,
 }: {
   children: React.ReactNode;
+  /** Category to open on load, from the `/wiki/Category:Name` route. When set
+   * it takes precedence over the last root saved in localStorage. */
+  initialCategory?: string | null;
 }) {
-  const [root, setRootState] = useState<string | null>(null);
-  const [path, setPath] = useState<string[]>([]);
+  // Derived from a server-provided route param, so the initial server and
+  // client render agree (no hydration mismatch) and the category is shown
+  // immediately on a deep link instead of after a client effect.
+  const initialClean =
+    (initialCategory?.trim().replace(/^Category:/i, "") || null) ?? null;
+
+  const [root, setRootState] = useState<string | null>(initialClean);
+  const [path, setPath] = useState<string[]>(
+    initialClean ? [initialClean] : [],
+  );
   const [selectedFile, setSelectedFile] = useState<CategoryFileInfo | null>(
     null,
   );
@@ -116,18 +132,84 @@ export default function BrowserProvider({
   const [redoStack, setRedoStack] = useState<PendingChange[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [publishResults, setPublishResults] = useState<PublishResult[] | null>(null);
+  const [recentCategories, setRecentCategories] = useState<string[]>([]);
 
-  // Restore the last root from localStorage on first mount. This must run in
-  // an effect (not a lazy initializer) so server and client render the same
-  // initial HTML and avoid a hydration mismatch; the one-time setState here is
-  // intentional.
+  // On first mount: load the recently-visited list, then restore the last
+  // visited gallery — the most recent entry (or, on a deep link, the linked
+  // category). Runs in an effect (not a lazy initializer) so server and client
+  // render the same initial HTML — the one-time setState here is intentional.
   useEffect(() => {
-    const saved = localStorage.getItem(ROOT_STORAGE_KEY);
-    if (saved) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration read
-      setRootState(saved);
-      setPath([saved]);
+    const stored = getRecentCategories();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration read
+    setRecentCategories(stored);
+
+    if (initialClean) {
+      localStorage.setItem(ROOT_STORAGE_KEY, initialClean);
+      return;
     }
+    const last = stored[0] ?? localStorage.getItem(ROOT_STORAGE_KEY);
+    if (last) {
+      setRootState(last);
+      setPath([last]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; initialClean is stable per page load
+  }, []);
+
+  const current = path.length > 0 ? path[path.length - 1] : null;
+
+  // Record every visited category (most recent first) so it survives reloads
+  // and feeds the sidebar's "recently visited" list.
+  useEffect(() => {
+    if (!current) return;
+    setRecentCategories(pushRecentCategory(current));
+  }, [current]);
+
+  // Keep the active category and the URL in sync, Commons-parallel
+  // (/wiki/Category:Name). State → URL uses the History API (shallow routing,
+  // no reload, integrates with the Next router). `suppressUrlSync` skips the
+  // echo when the change itself came from a back/forward popstate.
+  const suppressUrlSync = useRef(false);
+  const urlSyncReady = useRef(false);
+
+  useEffect(() => {
+    if (suppressUrlSync.current) {
+      suppressUrlSync.current = false;
+      urlSyncReady.current = true;
+      return;
+    }
+    const target = current ? categoryToAppPath(current) : "/";
+    if (window.location.pathname === target) {
+      urlSyncReady.current = true;
+      return;
+    }
+    if (!urlSyncReady.current) {
+      urlSyncReady.current = true;
+      window.history.replaceState(null, "", target);
+    } else {
+      window.history.pushState(null, "", target);
+    }
+  }, [current]);
+
+  // URL → state for browser back/forward: re-open whatever category the URL
+  // now points at (or the empty "new search" state at "/").
+  useEffect(() => {
+    function onPopState() {
+      suppressUrlSync.current = true;
+      const name = categoryFromPath(window.location.pathname);
+      if (name) {
+        localStorage.setItem(ROOT_STORAGE_KEY, name);
+        setRootState(name);
+        setPath([name]);
+      } else {
+        setRootState(null);
+        setPath([]);
+      }
+      setSelectedFile(null);
+      setSearchState(null);
+      setSelected(new Set());
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const setRoot = useCallback((name: string) => {
@@ -308,7 +390,8 @@ export default function BrowserProvider({
     () => ({
       root,
       path,
-      current: path.length > 0 ? path[path.length - 1] : null,
+      current,
+      recentCategories,
       setRoot,
       clearRoot,
       selectPath,
@@ -340,6 +423,8 @@ export default function BrowserProvider({
     [
       root,
       path,
+      current,
+      recentCategories,
       setRoot,
       clearRoot,
       selectPath,

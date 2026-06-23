@@ -23,7 +23,8 @@
     "subcatCount": "{count, plural, =0 {alt kategori yok} one {# alt kategori} other {# alt kategori}}",
     "noWikidata": "Wikidata bağlantısı yok",
     "addSubcategory": "Alt kategori ekle",
-    "goToParent": "Üst kategoriye git: {name}"
+    "goToParent": "Üst kategoriye git: {name}",
+    "recent": "Son ziyaret edilenler"
   },
   "filters": {
     "all": "Tümü",
