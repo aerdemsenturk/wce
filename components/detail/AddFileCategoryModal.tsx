@@ -13,12 +13,14 @@ export default function AddFileCategoryModal({
   fileName,
   existingCategories,
   defaultParent,
+  onAdded,
   onClose,
 }: {
   fileTitle: string;
   fileName: string;
   existingCategories: string[];
   defaultParent: string | null;
+  onAdded: (category: string) => void;
   onClose: () => void;
 }) {
   const t = useTranslations("detail");
@@ -39,6 +41,7 @@ export default function AddFileCategoryModal({
         category,
         label: t("addCategoryLabel", { name: fileName, category }),
       });
+      onAdded(category);
     }
     onClose();
   }
@@ -63,6 +66,7 @@ export default function AddFileCategoryModal({
       category: cleanName,
       label: t("addCategoryLabel", { name: fileName, category: cleanName }),
     });
+    onAdded(cleanName);
     onClose();
   }
 

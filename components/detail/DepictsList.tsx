@@ -11,13 +11,15 @@ export default function DepictsList({
   title,
   pageid,
   depicts,
+  onSaved,
 }: {
   title: string;
   pageid: number;
   depicts: Depict[];
+  onSaved: (next: Depict[]) => void;
 }) {
   const t = useTranslations("detail");
-  const { addChange, removeChange } = useBrowser();
+  const { pendingChanges, addChange, removeChange } = useBrowser();
   const [adding, setAdding] = useState(false);
   // Maps statement id -> the id of the queued removeDepict change, so a
   // second click can find and cancel that exact change.
@@ -29,12 +31,25 @@ export default function DepictsList({
         {depicts.map((d) => {
           const changeId = pendingRemovedIds.get(d.statementId);
           const removed = changeId !== undefined;
+          // Newly added depicts carry a synthetic "pending" statement id
+          // (see overlayDepicts) until the change is published.
+          const addedChangeId =
+            d.statementId === "pending"
+              ? pendingChanges.find(
+                  (c) => c.type === "addDepict" && c.fileTitle === title && c.qid === d.id,
+                )?.id
+              : undefined;
+          const pending = addedChangeId !== undefined;
           return (
             <li key={d.id}>
               <span
-                title={d.label ?? d.id}
+                title={pending ? t("pendingChange") : d.label ?? d.id}
                 className={`group flex max-w-full items-center gap-1.5 rounded-full pl-2.5 pr-1 py-1 text-xs ${
-                  removed ? "bg-red-50 text-red-500" : "bg-sky-50 text-sky-700 hover:bg-sky-100"
+                  removed
+                    ? "bg-red-50 text-red-500"
+                    : pending
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-sky-50 text-sky-700 hover:bg-sky-100"
                 }`}
               >
                 <ExternalLink
@@ -44,7 +59,7 @@ export default function DepictsList({
                   <span className="min-w-0 truncate">{d.label ?? d.id}</span>
                   <span
                     className={`shrink-0 font-mono text-[10px] ${
-                      removed ? "text-red-300" : "text-sky-400"
+                      removed ? "text-red-300" : pending ? "text-amber-400" : "text-sky-400"
                     }`}
                   >
                     {d.id}
@@ -54,6 +69,11 @@ export default function DepictsList({
                 <button
                   type="button"
                   onClick={() => {
+                    if (addedChangeId !== undefined) {
+                      removeChange(addedChangeId);
+                      onSaved(depicts.filter((dep) => dep.id !== d.id));
+                      return;
+                    }
                     if (changeId !== undefined) {
                       removeChange(changeId);
                       setPendingRemovedIds((prev) => {
@@ -76,15 +96,17 @@ export default function DepictsList({
                       }),
                     });
                   }}
-                  aria-label={removed ? t("undoRemoveDepict") : t("removeDepict")}
-                  title={removed ? t("undoRemoveDepict") : undefined}
+                  aria-label={removed || pending ? t("undoChange") : t("removeDepict")}
+                  title={removed || pending ? t("undoChange") : undefined}
                   className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
                     removed
                       ? "text-red-400 hover:bg-red-200 hover:text-red-700"
-                      : "text-sky-400 hover:bg-sky-200 hover:text-sky-700"
+                      : pending
+                        ? "text-amber-400 hover:bg-amber-200 hover:text-amber-700"
+                        : "text-sky-400 hover:bg-sky-200 hover:text-sky-700"
                   }`}
                 >
-                  {removed ? <UndoIcon /> : <XIcon />}
+                  {removed || pending ? <UndoIcon /> : <XIcon />}
                 </button>
               </span>
             </li>
@@ -105,7 +127,7 @@ export default function DepictsList({
       {adding && (
         <AddDepictModal
           existingIds={depicts.map((d) => d.id)}
-          onAdd={(item) =>
+          onAdd={(item) => {
             addChange({
               id: crypto.randomUUID(),
               type: "addDepict",
@@ -117,8 +139,9 @@ export default function DepictsList({
                 name: title.replace(/^File:/i, ""),
                 depict: item.label,
               }),
-            })
-          }
+            });
+            onSaved([...depicts, { id: item.id, label: item.label, statementId: "pending" }]);
+          }}
           onClose={() => setAdding(false)}
         />
       )}

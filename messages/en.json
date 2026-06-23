@@ -101,7 +101,9 @@
     "nominateDeletionReasonPlaceholder": "e.g. wrong resolution",
     "nominateDeletionLabel": "{name}: nominated for deletion",
     "nominatedForDeletion": "Nominated for deletion",
-    "undoNominateDeletion": "Undo"
+    "undoNominateDeletion": "Undo",
+    "pendingChange": "Pending publish",
+    "undoChange": "Undo"
   },
   "search": {
     "resultsFor": "Results for “{query}”",

@@ -101,7 +101,9 @@
     "nominateDeletionReasonPlaceholder": "örn. yanlış çözünürlük",
     "nominateDeletionLabel": "{name}: silinmeye aday gösterildi",
     "nominatedForDeletion": "Silinmeye aday gösterildi",
-    "undoNominateDeletion": "Geri al"
+    "undoNominateDeletion": "Geri al",
+    "pendingChange": "Yayın bekliyor",
+    "undoChange": "Geri al"
   },
   "search": {
     "resultsFor": "“{query}” için sonuçlar",

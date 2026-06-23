@@ -241,14 +241,20 @@ function DetailContent({ title }: { title: string }) {
                   {detail.categories.map((cat) => {
                     const changeId = pendingRemovedCategories.get(cat);
                     const removed = changeId !== undefined;
+                    const addedChangeId = pendingChanges.find(
+                      (c) => c.type === "addCategory" && c.fileTitle === title && c.category === cat,
+                    )?.id;
+                    const pending = addedChangeId !== undefined;
                     return (
                       <span
                         key={cat}
-                        title={cat}
+                        title={pending ? t("pendingChange") : cat}
                         className={`group flex max-w-full items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-xs ${
                           removed
                             ? "bg-red-50 text-red-500"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            : pending
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
                         <button
@@ -265,6 +271,10 @@ function DetailContent({ title }: { title: string }) {
                         <button
                           type="button"
                           onClick={() => {
+                            if (addedChangeId !== undefined) {
+                              removeChange(addedChangeId);
+                              return;
+                            }
                             if (changeId !== undefined) {
                               removeChange(changeId);
                               setPendingRemovedCategories((prev) => {
@@ -287,15 +297,17 @@ function DetailContent({ title }: { title: string }) {
                               }),
                             });
                           }}
-                          aria-label={removed ? t("undoRemoveCategory") : t("removeCategory")}
-                          title={removed ? t("undoRemoveCategory") : undefined}
+                          aria-label={removed || pending ? t("undoChange") : t("removeCategory")}
+                          title={removed || pending ? t("undoChange") : undefined}
                           className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
                             removed
                               ? "text-red-400 hover:bg-red-200 hover:text-red-700"
-                              : "text-slate-400 hover:bg-slate-300 hover:text-slate-700"
+                              : pending
+                                ? "text-amber-400 hover:bg-amber-200 hover:text-amber-700"
+                                : "text-slate-400 hover:bg-slate-300 hover:text-slate-700"
                           }`}
                         >
-                          {removed ? <UndoIcon /> : <XIcon />}
+                          {removed || pending ? <UndoIcon /> : <XIcon />}
                         </button>
                       </span>
                     );
@@ -317,6 +329,11 @@ function DetailContent({ title }: { title: string }) {
                   fileName={detail.name}
                   existingCategories={detail.categories}
                   defaultParent={current}
+                  onAdded={(category) =>
+                    setDetail((prev) =>
+                      prev ? { ...prev, categories: [...prev.categories, category] } : prev,
+                    )
+                  }
                   onClose={() => setAddingCategory(false)}
                 />
               )}
@@ -334,6 +351,9 @@ function DetailContent({ title }: { title: string }) {
                   title={title}
                   pageid={detail.pageid}
                   depicts={detail.depicts}
+                  onSaved={(next) =>
+                    setDetail((prev) => (prev ? { ...prev, depicts: next } : prev))
+                  }
                 />
               </Field>
 

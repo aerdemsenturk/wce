@@ -16,7 +16,7 @@ export default function DescriptionField({
   onSaved: (next: LangText[]) => void;
 }) {
   const t = useTranslations("detail");
-  const { addChange } = useBrowser();
+  const { pendingChanges, addChange } = useBrowser();
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   if (descriptions.length === 0) {
@@ -39,24 +39,43 @@ export default function DescriptionField({
   return (
     <>
       <ul className="space-y-1.5">
-        {descriptions.map((d, i) => (
-          <li key={`${d.lang}-${i}`} className="group flex gap-2 text-sm">
-            {d.lang !== "und" && (
-              <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1 text-[10px] font-semibold uppercase text-slate-500">
-                {d.lang}
-              </span>
-            )}
-            <span className="flex-1 text-slate-700">{d.value}</span>
-            <button
-              type="button"
-              onClick={() => setEditingIndex(i)}
-              aria-label={t("edit")}
-              className="shrink-0 text-slate-300 hover:text-slate-600"
+        {descriptions.map((d, i) => {
+          const pendingId = [...pendingChanges]
+            .reverse()
+            .find((c) => c.type === "description" && c.fileTitle === title && c.lang === d.lang)
+            ?.id;
+          return (
+            <li
+              key={`${d.lang}-${i}`}
+              className={`group flex items-center gap-2 rounded-md px-1.5 py-1 text-sm ${
+                pendingId ? "bg-amber-50" : ""
+              }`}
             >
-              <PencilIcon />
-            </button>
-          </li>
-        ))}
+              {d.lang !== "und" && (
+                <span className="shrink-0 rounded bg-slate-100 px-1 text-[10px] font-semibold uppercase text-slate-500">
+                  {d.lang}
+                </span>
+              )}
+              <span className="flex-1 text-slate-700">{d.value}</span>
+              {pendingId && (
+                <span
+                  title={t("pendingChange")}
+                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                >
+                  {t("pendingChange")}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setEditingIndex(i)}
+                aria-label={t("edit")}
+                className="shrink-0 text-slate-300 hover:text-slate-600"
+              >
+                <PencilIcon />
+              </button>
+            </li>
+          );
+        })}
       </ul>
 
       {editingIndex != null && (
