@@ -55,6 +55,8 @@
   "detail": {
     "open": "Aç",
     "close": "Kapat",
+    "previous": "Önceki öge",
+    "next": "Sonraki öge",
     "edit": "Düzenle",
     "editDescriptionTitle": "Açıklamayı düzenle",
     "editDescriptionTitleLang": "Açıklamayı düzenle ({lang})",

@@ -69,9 +69,13 @@ interface BrowserState {
   /** Update the active category's name in place after a rename (keeps the
    * rest of the path, and updates the saved root if it was the root). */
   renameCurrent: (newName: string) => void;
-  /** File open in the detail panel, or null. */
+  /** File open in the detail modal, or null. */
   selectedFile: CategoryFileInfo | null;
   selectFile: (file: CategoryFileInfo | null) => void;
+  /** The files currently shown in the grid (after filter/sort), in display
+   * order — lets the detail modal step to the previous/next file. */
+  visibleFiles: CategoryFileInfo[];
+  setVisibleFiles: (files: CategoryFileInfo[]) => void;
   /** Active search query (scoped to the current category), or null. */
   search: string | null;
   setSearch: (query: string | null) => void;
@@ -135,6 +139,7 @@ export default function BrowserProvider({
   const [selectedFile, setSelectedFile] = useState<CategoryFileInfo | null>(
     null,
   );
+  const [visibleFiles, setVisibleFiles] = useState<CategoryFileInfo[]>([]);
   const [search, setSearchState] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
@@ -292,6 +297,10 @@ export default function BrowserProvider({
     setSelectedFile(file);
   }, []);
 
+  const setVisibleFilesCb = useCallback((files: CategoryFileInfo[]) => {
+    setVisibleFiles(files);
+  }, []);
+
   const setSearch = useCallback((query: string | null) => {
     const clean = query?.trim();
     setSearchState(clean ? clean : null);
@@ -439,6 +448,8 @@ export default function BrowserProvider({
       renameCurrent,
       selectedFile,
       selectFile,
+      visibleFiles,
+      setVisibleFiles: setVisibleFilesCb,
       search,
       setSearch,
       selected,
@@ -475,6 +486,8 @@ export default function BrowserProvider({
       renameCurrent,
       selectedFile,
       selectFile,
+      visibleFiles,
+      setVisibleFilesCb,
       search,
       setSearch,
       selected,

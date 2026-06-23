@@ -9,9 +9,8 @@ import {
   overlayDepicts,
   overlayLocation,
 } from "@/lib/pendingChanges";
-import type { FileDetail } from "@/lib/types";
+import type { CategoryFileInfo, FileDetail } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
-import ResizablePanel from "@/components/layout/ResizablePanel";
 import ExternalLink from "@/components/ui/ExternalLink";
 import LicenseBadge from "@/components/ui/LicenseBadge";
 import DescriptionField from "./DescriptionField";
@@ -20,20 +19,73 @@ import DepictsList from "./DepictsList";
 import AddFileCategoryModal from "./AddFileCategoryModal";
 
 export default function DetailPanel() {
-  const { selectedFile } = useBrowser();
+  const t = useTranslations("detail");
+  const { selectedFile, selectFile, visibleFiles } = useBrowser();
+
+  const index = selectedFile
+    ? visibleFiles.findIndex((f) => f.pageid === selectedFile.pageid)
+    : -1;
+  const prevFile: CategoryFileInfo | null = index > 0 ? visibleFiles[index - 1] : null;
+  const nextFile: CategoryFileInfo | null =
+    index >= 0 && index < visibleFiles.length - 1 ? visibleFiles[index + 1] : null;
+
+  useEffect(() => {
+    if (!selectedFile) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        selectFile(null);
+      } else if (e.key === "ArrowLeft" && prevFile) {
+        selectFile(prevFile);
+      } else if (e.key === "ArrowRight" && nextFile) {
+        selectFile(nextFile);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedFile, prevFile, nextFile, selectFile]);
+
   if (!selectedFile) return null;
 
   return (
-    <ResizablePanel
-      side="right"
-      defaultWidth={380}
-      minWidth={300}
-      maxWidth={620}
-      storageKey="wce:right-width"
-      className="h-full border-l border-border-base bg-panel"
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => selectFile(null)}
     >
-      <DetailContent key={selectedFile.pageid} title={selectedFile.title} />
-    </ResizablePanel>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (prevFile) selectFile(prevFile);
+        }}
+        disabled={!prevFile}
+        aria-label={t("previous")}
+        className="absolute left-2 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-md hover:bg-white disabled:cursor-default disabled:opacity-0 sm:left-4"
+      >
+        <ChevronIcon direction="left" />
+      </button>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-[min(85vh,800px)] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-panel shadow-2xl"
+      >
+        <DetailContent key={selectedFile.pageid} title={selectedFile.title} />
+      </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (nextFile) selectFile(nextFile);
+        }}
+        disabled={!nextFile}
+        aria-label={t("next")}
+        className="absolute right-2 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-md hover:bg-white disabled:cursor-default disabled:opacity-0 sm:right-4"
+      >
+        <ChevronIcon direction="right" />
+      </button>
+    </div>
   );
 }
 
@@ -330,6 +382,20 @@ function CloseIcon() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d={direction === "left" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

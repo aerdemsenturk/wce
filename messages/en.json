@@ -55,6 +55,8 @@
   "detail": {
     "open": "Open",
     "close": "Close",
+    "previous": "Previous item",
+    "next": "Next item",
     "edit": "Edit",
     "editDescriptionTitle": "Edit description",
     "editDescriptionTitleLang": "Edit description ({lang})",

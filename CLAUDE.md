@@ -21,35 +21,58 @@ npm run start    # run the production build
 npm run lint     # eslint
 ```
 
-There is no test suite yet. Verify changes via `npm run build` and manual checks in the browser.
+There is no test suite. Verify changes via `npm run build` and manual checks in the browser.
 
 ## Project purpose and scope
 
-WCE (Wikimedia Commons Editor) is a read-only browser/explorer for Wikimedia Commons categories
-and file metadata, built for small editorial teams working with cultural heritage content.
+WCE (Wikimedia Commons Editor) is a browser/explorer **and lightweight editor** for Wikimedia
+Commons categories and file metadata, built for small editorial teams working with cultural
+heritage content. See `README.md` and `PROJECT.md` for the full feature list and build status.
 
-**v1 is read-only by design** — no auth, no server-side secrets, no `.env`, no write operations.
-Editing, uploading, and OAuth login are deferred to v2 pending Wikimedia OAuth approval. Do not
-add write/edit/upload functionality unless explicitly asked — it's out of scope until OAuth lands.
-See `PROJECT.md` for the full feature/build-status checklist.
+This is v2: editing is in scope (description, categories, depicts, location, file uploads,
+drag-and-drop recategorization, category create/rename) gated behind a single owner-only OAuth
+2.0 access token — there is no login flow or multi-user auth. Without
+`WIKIMEDIA_OAUTH_ACCESS_TOKEN` set, the app still works as a read-only browser; write endpoints
+return a disabled error instead of calling Commons.
 
 ## Architecture
 
-**Data flow:** all Wikimedia API calls happen server-side. `lib/mediawiki.ts` is the only module
-that talks to `commons.wikimedia.org` and `wikidata.org` — it sets a required `User-Agent` and
-revalidates upstream responses every 5 minutes. It's wrapped by the read-only proxy routes in
-`app/api/commons/{category,file,search}/route.ts`. The client never calls Wikimedia APIs directly;
-it calls these routes via the fetch helpers in `lib/api.ts`, which also maintain in-memory
-`Map`-based caches (`childrenCache`, `fileDetailCache`, `gridCache`) so re-expanding a tree node or
-revisiting a category doesn't refetch within the same session.
+**Data flow:** all Wikimedia/Wikidata calls happen server-side in `lib/mediawiki.ts` — the only
+module that talks to `commons.wikimedia.org` and `wikidata.org`. It sets the required
+`User-Agent`, attaches the OAuth bearer token for writes, and mints per-wiki CSRF tokens (a
+token minted on Commons can't be reused on Wikidata, even though the OAuth bearer is shared).
+Read calls revalidate every 5 minutes; write calls are not cached. `lib/mediawiki.ts` is wrapped
+by proxy routes under `app/api/commons/{category,file,search,upload}/route.ts` and
+`app/api/wikidata/search/route.ts`. The client never calls Wikimedia/Wikidata APIs directly — it
+goes through the fetch helpers in `lib/api.ts`, which also maintain `BoundedCache` (LRU-evicting
+`Map`) caches (children, file detail, parents, preview thumbs) so re-expanding a tree node or
+revisiting a category doesn't refetch within the same session. Write helpers in `lib/api.ts`
+invalidate the relevant cache entries after a successful edit.
 
 ```
-Browser components → lib/api.ts (fetch + cache) → /api/commons/* route handlers
-                                                  → lib/mediawiki.ts → Commons/Wikidata APIs
+Browser components → lib/api.ts (fetch + cache + write helpers) → app/api/commons/*, app/api/wikidata/*
+                                                                   → lib/mediawiki.ts → Commons/Wikidata APIs
 ```
 
 There's a parallel, independent path for location: `app/api/geocode/reverse` proxies Nominatim,
-cached client-side in `sessionStorage` keyed by `lat,lon` (not in `lib/api.ts`'s in-memory cache).
+cached client-side in `sessionStorage` keyed by `lat,lon` (not in `lib/api.ts`'s caches).
+
+**Batch-then-publish write model** (`lib/pendingChanges.ts`): edits made through the UI (edit
+description, add/remove a category or depict, move a file/category via drag-and-drop, change or
+clear location, create a category from a multi-selection) are queued locally as typed
+`PendingChange` objects, not written immediately. A family of `overlay*` functions
+(`overlaySubcategories`, `overlayFiles`, `overlayDescriptions`, `overlayLocation`,
+`overlayCategories`, `overlayDepicts`, `overlayWikidata`) apply the queue on top of
+server-fetched data so the tree/grid/detail views reflect pending edits before anything is
+actually sent to Commons. `components/browser/PublishConfirmModal.tsx` /
+`PublishResultsModal.tsx` drive the publish step, which replays the queue through `lib/api.ts`'s
+write functions and reports per-change success/failure.
+
+**Drag-and-drop** (`lib/dnd.ts`): a single custom MIME payload (`DragPayload`) carries the
+dragged page title, its current category, and (for multi-selection drags) the full snapshotted
+batch — used by `FileCard`, `CategoryCard`, and `CategoryNode` as both drag source and drop
+target. A multi-selection drag swaps in a small "count" pill as the drag image instead of the
+default single-card ghost.
 
 **Category/file domain model** lives in `lib/types.ts`. Two shapes matter most:
 - `CategoryChildren` — subcategories + file count + Wikidata badge for one category (sidebar tree).
@@ -62,11 +85,18 @@ For the file detail panel, `getFileDetail()` in `lib/mediawiki.ts` prefers wikit
 (via `lib/wikitext.ts`'s `parseInformation()`, which reads the `{{Information}}` template for
 multilingual descriptions/date/author and `{{Location}}` for coordinates) and falls back to
 `imageinfo.extmetadata` only when wikitext parsing comes up empty. GeoData coordinates
-(`prop=coordinates`) take priority over wikitext `{{Location}}` when both exist.
+(`prop=coordinates`) take priority over wikitext `{{Location}}` when both exist. Edits to
+description/location/categories go through targeted wikitext patch helpers in `lib/wikitext.ts`
+rather than rewriting the whole page, to minimize diff noise on Commons.
+
+`lib/category.ts` holds pure category-name helpers (prefix add/strip, Commons URL building, the
+app's `/wiki/Category:Name`-style route path ↔ category-name conversion) shared by client and
+server code — no API calls.
 
 **State/navigation:** `components/browser/BrowserProvider.tsx` is a client context holding the
-root category (persisted to `localStorage`), the current navigation path, and the selected
-category — most of `components/category/*` and `components/files/*` read from it instead of
+root category (persisted to `localStorage`), the current navigation path, the selected
+category/files, the pending-change queue, recent/favorite categories, and toast state — most of
+`components/category/*`, `components/files/*`, and `components/detail/*` read from it instead of
 prop-drilling.
 
 **i18n:** `next-intl`, but **without locale routing** — there's no `[locale]` segment. Locale is
@@ -76,5 +106,17 @@ Turkish (`tr`); message catalogs are `messages/{tr,en}.json`. The chosen `lang` 
 through to the MediaWiki calls themselves (`iiextmetadatalanguage`, Wikidata `languages` param) so
 descriptions/labels come back pre-localized, not just the UI chrome.
 
-**Map:** MapLibre GL with keyless OSM raster tiles (no API key, no Leaflet despite what `PROJECT.md`
-says in one place — check `components/detail/LocationMap.tsx` if unsure).
+**Map:** MapLibre GL with keyless OSM raster tiles (no Leaflet despite what `PROJECT.md` says in
+one place) — `components/detail/LocationMap.tsx` (display) and `LocationPickerMap.tsx` (editing
+coordinates).
+
+## Environment variables
+
+Write features (description/category/depict/location edits, uploads) require a Wikimedia OAuth
+2.0 access token tied to a single account, in `.env.local` (gitignored):
+
+```
+WIKIMEDIA_OAUTH_ACCESS_TOKEN=...
+```
+
+Read-only browsing works with no environment configuration at all.

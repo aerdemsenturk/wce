@@ -40,6 +40,7 @@ export default function FileGrid() {
     setMergeModalOpen,
     version,
     pendingChanges,
+    setVisibleFiles,
   } = useBrowser();
 
   const [files, setFiles] = useState<CategoryFileInfo[] | null>(null);
@@ -120,6 +121,11 @@ export default function FileGrid() {
     () => applySort(applyFilter(files ?? [], filter), sort),
     [files, filter, sort],
   );
+  // Keep the detail modal's prev/next navigation in sync with whatever the
+  // grid is actually showing (filtered/sorted), not the raw fetch result.
+  useEffect(() => {
+    setVisibleFiles(visible);
+  }, [visible, setVisibleFiles]);
   // Full info for every checked file, so a drag starting on a checked card can
   // carry the whole selection, and the merge modal can reuse the same list.
   const selectedFiles = useMemo(
