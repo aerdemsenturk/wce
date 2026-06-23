@@ -14,6 +14,7 @@
   "sidebar": {
     "title": "Categories",
     "rootPrompt": "Type a Commons category name",
+    "changeRoot": "New search",
     "rootPlaceholder": "e.g. Lycian Way",
     "load": "Load",
     "empty": "No category selected yet",
@@ -21,7 +22,8 @@
     "fileCount": "{count, plural, =0 {no files} one {# file} other {# files}}",
     "subcatCount": "{count, plural, =0 {no subcategories} one {# subcategory} other {# subcategories}}",
     "noWikidata": "No Wikidata link",
-    "addSubcategory": "Add subcategory"
+    "addSubcategory": "Add subcategory",
+    "goToParent": "Go to parent: {name}"
   },
   "filters": {
     "all": "All",

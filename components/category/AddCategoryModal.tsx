@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import Modal, { ModalActions } from "@/components/ui/Modal";
-import FormField, { formFieldInputClassName } from "@/components/ui/FormField";
+import FormField from "@/components/ui/FormField";
+import CategoryPicker from "@/components/ui/CategoryPicker";
 import WikidataPicker, { type WikidataPickerValue } from "@/components/ui/WikidataPicker";
 
 export default function AddCategoryModal({
@@ -51,13 +52,7 @@ export default function AddCategoryModal({
       }
     >
       <FormField label={t("nameLabel")}>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("namePlaceholder")}
-          className={formFieldInputClassName}
-        />
+        <CategoryPicker value={name} onChange={setName} onSelect={setName} />
       </FormField>
 
       <FormField label={t("qidLabel")} note={t("qidNote")}>

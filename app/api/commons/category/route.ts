@@ -4,6 +4,7 @@ import {
   clearCategorySitelink,
   createCategoryFromSelection,
   getCategoryChildren,
+  getCategoryParents,
   getCategoryFiles,
   getCategoryGrid,
   getCategoryPreviewThumbs,
@@ -51,6 +52,10 @@ export async function GET(request: NextRequest) {
     if (op === "children") {
       const data = await getCategoryChildren(category, lang);
       return NextResponse.json(data);
+    }
+    if (op === "parents") {
+      const parents = await getCategoryParents(category, lang);
+      return NextResponse.json({ category, parents });
     }
     if (op === "files") {
       const files = await getCategoryFiles(category);

@@ -3,6 +3,7 @@ import type {
   CategoryFile,
   CategoryFileInfo,
   FileDetail,
+  Subcategory,
 } from "./types";
 
 // Client-side helpers that call our own server proxy under /api/commons.
@@ -46,6 +47,35 @@ export async function fetchCategoryChildren(
   const res = await fetch(`/api/commons/category?${params}`);
   if (!res.ok) throw new Error(`children ${res.status}`);
   return res.json();
+}
+
+export async function fetchCategoryParents(
+  category: string,
+  lang: string,
+): Promise<Subcategory[]> {
+  const params = new URLSearchParams({ op: "parents", category, lang });
+  const res = await fetch(`/api/commons/category?${params}`);
+  if (!res.ok) throw new Error(`parents ${res.status}`);
+  const data = (await res.json()) as { parents: Subcategory[] };
+  return data.parents;
+}
+
+const parentsCache = new BoundedCache<Promise<Subcategory[]>>();
+
+export function getCategoryParentsCached(
+  category: string,
+  lang: string,
+): Promise<Subcategory[]> {
+  const key = `${lang}:${category}`;
+  let entry = parentsCache.get(key);
+  if (!entry) {
+    entry = fetchCategoryParents(category, lang).catch((err) => {
+      parentsCache.delete(key);
+      throw err;
+    });
+    parentsCache.set(key, entry);
+  }
+  return entry;
 }
 
 export async function fetchCategoryFiles(
@@ -396,6 +426,9 @@ export function invalidateCategory(category: string): void {
   }
   for (const key of gridCache.keys()) {
     if (key.endsWith(`:${category}`)) gridCache.delete(key);
+  }
+  for (const key of parentsCache.keys()) {
+    if (key.endsWith(`:${category}`)) parentsCache.delete(key);
   }
   previewThumbsCache.delete(category);
 }

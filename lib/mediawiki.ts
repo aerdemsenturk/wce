@@ -437,6 +437,68 @@ export async function getCategoryChildren(
   };
 }
 
+/**
+ * Parent categories a category page is itself filed under (its own visible
+ * `[[Category:...]]` links), enriched with the same file/subcat counts and
+ * Wikidata badge as subcategories. Used by the sidebar to show a category's
+ * ancestors above the tree root.
+ */
+export async function getCategoryParents(
+  category: string,
+  lang: string,
+): Promise<Subcategory[]> {
+  const titles: string[] = [];
+  let clcontinue: string | undefined;
+
+  do {
+    const data = (await apiGet(
+      COMMONS_API,
+      {
+        action: "query",
+        titles: withCategoryPrefix(category),
+        prop: "categories",
+        clshow: "!hidden",
+        cllimit: 500,
+        clcontinue,
+      },
+      { noStore: true },
+    )) as {
+      query?: { pages?: { categories?: { title: string }[] }[] };
+      continue?: { clcontinue?: string };
+    };
+
+    const page = data.query?.pages?.[0];
+    for (const c of page?.categories ?? []) titles.push(c.title);
+    clcontinue = data.continue?.clcontinue;
+  } while (clcontinue);
+
+  if (titles.length === 0) return [];
+
+  const infoMap = await fetchCategoryInfo(titles);
+  const qids = [
+    ...new Set(
+      [...infoMap.values()]
+        .map((info) => info.wikibaseItem)
+        .filter((id): id is string => id != null),
+    ),
+  ];
+  const labels = await fetchWikidataLabels(qids, lang);
+
+  return titles
+    .map((title) => {
+      const info = infoMap.get(title);
+      const qid = info?.wikibaseItem ?? null;
+      return {
+        title,
+        name: stripCategoryPrefix(title),
+        files: info?.files ?? null,
+        subcats: info?.subcats ?? null,
+        wikidata: qid ? { id: qid, label: labels.get(qid) ?? null } : null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 interface ExtMetaValue {
   value?: string;
 }

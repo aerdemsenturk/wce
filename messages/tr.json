@@ -14,6 +14,7 @@
   "sidebar": {
     "title": "Kategoriler",
     "rootPrompt": "Bir Commons kategorisi adı yazın",
+    "changeRoot": "Yeni arama",
     "rootPlaceholder": "ör. Lycian Way",
     "load": "Yükle",
     "empty": "Henüz kategori seçilmedi",
@@ -21,7 +22,8 @@
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
     "subcatCount": "{count, plural, =0 {alt kategori yok} one {# alt kategori} other {# alt kategori}}",
     "noWikidata": "Wikidata bağlantısı yok",
-    "addSubcategory": "Alt kategori ekle"
+    "addSubcategory": "Alt kategori ekle",
+    "goToParent": "Üst kategoriye git: {name}"
   },
   "filters": {
     "all": "Tümü",

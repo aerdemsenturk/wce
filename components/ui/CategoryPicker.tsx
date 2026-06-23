@@ -8,17 +8,34 @@ import { formFieldInputClassName } from "@/components/ui/FormField";
 /** Instant-search existing Commons categories, with a free-text fallback —
  * pressing Enter (or clicking a result) calls `onSelect` even if the typed
  * name doesn't appear in the search results, since a category page may
- * exist without matching `intitle:` search. */
+ * exist without matching `intitle:` search.
+ *
+ * Pass `value` + `onChange` to use it as a controlled autocomplete field
+ * (e.g. the create-category modal, where the typed text becomes the new
+ * category name and `onSelect` just fills the field). Left uncontrolled it
+ * keeps its own query state. */
 export default function CategoryPicker({
   onSelect,
   excluding = [],
+  value,
+  onChange,
+  autoFocus = true,
 }: {
   onSelect: (name: string) => void;
   excluding?: string[];
+  value?: string;
+  onChange?: (value: string) => void;
+  autoFocus?: boolean;
 }) {
   const t = useTranslations("common");
 
-  const [query, setQuery] = useState("");
+  const isControlled = value !== undefined;
+  const [internalQuery, setInternalQuery] = useState("");
+  const query = isControlled ? value : internalQuery;
+  const setQuery = (next: string) => {
+    onChange?.(next);
+    if (!isControlled) setInternalQuery(next);
+  };
   const [results, setResults] = useState<{ name: string; files: number | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -66,7 +83,7 @@ export default function CategoryPicker({
   return (
     <div ref={containerRef} className="relative">
       <input
-        autoFocus
+        autoFocus={autoFocus}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -77,6 +94,7 @@ export default function CategoryPicker({
           if (e.key === "Enter" && query.trim()) {
             e.preventDefault();
             onSelect(query.trim());
+            setOpen(false);
           }
         }}
         placeholder={t("categorySearchPlaceholder")}
@@ -92,7 +110,10 @@ export default function CategoryPicker({
               <li key={item.name}>
                 <button
                   type="button"
-                  onClick={() => onSelect(item.name)}
+                  onClick={() => {
+                    onSelect(item.name);
+                    setOpen(false);
+                  }}
                   className="flex w-full items-baseline gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-100"
                 >
                   <span className="truncate text-slate-700">{item.name}</span>
