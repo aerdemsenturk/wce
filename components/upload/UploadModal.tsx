@@ -1,9 +1,11 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { uploadFileToCommons } from "@/lib/api";
+import { readImageExif } from "@/lib/exif";
+import type { Coordinates } from "@/lib/types";
 import { formFieldInputClassName } from "@/components/ui/FormField";
 import FilePreview from "./FilePreview";
 
@@ -14,6 +16,11 @@ interface Row {
   file: File;
   filename: string;
   description: string;
+  /** Date taken, YYYY-MM-DD. Defaults to the file's mtime, replaced once the
+   * photo's EXIF "date taken" is read (most camera/phone photos have one). */
+  date: string;
+  /** GPS coordinates read from the photo's EXIF data, if present. */
+  location: Coordinates | null;
   status: RowStatus;
   error?: string;
 }
@@ -33,6 +40,28 @@ function isoDate(ms?: number): string {
     : d.toISOString().slice(0, 10);
 }
 
+/**
+ * Default filename derived from the category being browsed, since generic
+ * camera/phone names (IMG_1234.jpg, DSC_0001.jpg, ...) trip Commons' title
+ * blacklist. Keeps the original camera/phone number as a suffix (instead of
+ * a sequential 1, 2, 3...) to cut down on collisions between batches.
+ * Falls back to the original file name when no category is open.
+ */
+function defaultFilename(
+  categoryName: string | null,
+  fileName: string,
+  index: number,
+  total: number,
+): string {
+  if (!categoryName) return fileName;
+  const ext = /\.[^.]+$/.exec(fileName)?.[0] ?? "";
+  const base = categoryName.trim();
+  const stem = ext ? fileName.slice(0, -ext.length) : fileName;
+  const number = /\d+/.exec(stem)?.[0];
+  const suffix = number ?? (total > 1 ? String(index + 1) : "");
+  return suffix ? `${base} ${suffix}${ext}` : `${base}${ext}`;
+}
+
 export default function UploadModal({
   files,
   onClose,
@@ -46,9 +75,11 @@ export default function UploadModal({
   const { current, showToast, bumpVersion } = useBrowser();
 
   // Metadata shared across every file in this batch.
-  const [author, setAuthor] = useState("");
+  // Single-owner v2: this is the only account that can publish, so its user
+  // page is the obvious default author. Swap for the logged-in username once
+  // multi-user auth exists.
+  const [author, setAuthor] = useState("[[Aerdemsenturk]]");
   const [source, setSource] = useState("{{own}}");
-  const [date, setDate] = useState(() => isoDate(files[0]?.lastModified));
   const [license, setLicense] = useState<string>(LICENSE_OPTIONS[0].value);
   const [categories, setCategories] = useState<string[]>(
     current ? [current] : [],
@@ -56,15 +87,39 @@ export default function UploadModal({
   const [categoryInput, setCategoryInput] = useState("");
 
   const [rows, setRows] = useState<Row[]>(() =>
-    files.map((file) => ({
+    files.map((file, i) => ({
       id: crypto.randomUUID(),
       file,
-      filename: file.name,
+      filename: defaultFilename(current, file.name, i, files.length),
       description: "",
+      date: isoDate(file.lastModified),
+      location: null,
       status: "idle" as RowStatus,
     })),
   );
   const [uploading, setUploading] = useState(false);
+
+  // Read each photo's EXIF data once, on mount, and fill in date taken / GPS
+  // location where present — the user can still edit or clear them below.
+  useEffect(() => {
+    let active = true;
+    for (const row of rows) {
+      readImageExif(row.file).then((exif) => {
+        if (!active) return;
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? { ...r, date: exif.date ?? r.date, location: exif.location }
+              : r,
+          ),
+        );
+      });
+    }
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the initial file set
+  }, []);
 
   const pending = useMemo(
     () => rows.filter((r) => r.status !== "done"),
@@ -109,11 +164,12 @@ export default function UploadModal({
           filename: row.filename.trim(),
           description: row.description,
           descriptionLang: locale,
-          date,
+          date: row.date,
           author,
           source,
           license,
           categories,
+          location: row.location,
         });
         patchRow(row.id, { status: "done" });
         uploaded += 1;
@@ -165,19 +221,6 @@ export default function UploadModal({
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               placeholder={t("authorPlaceholder")}
-              disabled={uploading}
-              className={formFieldInputClassName}
-            />
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-slate-500">
-              {t("date")}
-            </span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
               disabled={uploading}
               className={formFieldInputClassName}
             />
@@ -293,6 +336,38 @@ export default function UploadModal({
                   placeholder={t("descriptionPlaceholder")}
                   className="w-full resize-none rounded-md border border-border-base bg-background px-2 py-1 text-xs outline-none focus:border-slate-400"
                 />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={row.date}
+                    onChange={(e) => patchRow(row.id, { date: e.target.value })}
+                    disabled={uploading || row.status === "done"}
+                    title={t("date")}
+                    className="rounded-md border border-border-base bg-background px-2 py-1 text-xs outline-none focus:border-slate-400"
+                  />
+                  {row.location && (
+                    <span
+                      title={t("locationFromExif", {
+                        lat: row.location.lat.toFixed(5),
+                        lon: row.location.lon.toFixed(5),
+                      })}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700 ring-1 ring-emerald-200"
+                    >
+                      <PinIcon />
+                      {row.location.lat.toFixed(4)}, {row.location.lon.toFixed(4)}
+                      {!uploading && row.status !== "done" && (
+                        <button
+                          type="button"
+                          onClick={() => patchRow(row.id, { location: null })}
+                          aria-label={t("removeLocation")}
+                          className="text-emerald-400 hover:text-emerald-700"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </div>
                 {row.status === "error" && row.error && (
                   <p className="text-[11px] text-red-500">{row.error}</p>
                 )}
@@ -371,6 +446,20 @@ function StatusBadge({
     );
   }
   return <span />;
+}
+
+function PinIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M6 11s4-3.7 4-6.5A4 4 0 0 0 2 4.5C2 7.3 6 11 6 11Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <circle cx="6" cy="4.5" r="1.2" fill="currentColor" />
+    </svg>
+  );
 }
 
 function TrashIcon() {

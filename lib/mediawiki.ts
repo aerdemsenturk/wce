@@ -3,6 +3,7 @@ import type {
   CategoryFile,
   CategoryFileInfo,
   CategoryWikidata,
+  Coordinates,
   Depict,
   FileDetail,
   FileStatus,
@@ -999,6 +1000,8 @@ export interface UploadMeta {
   license: string;
   /** Category names (with or without the "Category:" prefix). */
   categories: string[];
+  /** GPS coordinates read from the photo's EXIF data, if present. */
+  location?: Coordinates | null;
 }
 
 /** MediaWiki rejects these characters in titles; strip them so a user-typed
@@ -1039,10 +1042,11 @@ function buildFilePageWikitext(meta: UploadMeta): string {
     `|source=${source}`,
     `|author=${author}`,
     "}}",
-    "",
-    "=={{int:license-header}}==",
-    licenseTpl,
   ];
+  if (meta.location) {
+    lines.push(`{{Location dec|${meta.location.lat}|${meta.location.lon}}}`);
+  }
+  lines.push("", "=={{int:license-header}}==", licenseTpl);
   if (categories.length > 0) {
     lines.push("");
     for (const c of categories) lines.push(`[[Category:${c}]]`);

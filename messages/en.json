@@ -184,6 +184,8 @@
     "filename": "File name",
     "descriptionPlaceholder": "A short description of this image",
     "removeFile": "Remove file",
+    "locationFromExif": "From photo's EXIF data: {lat}, {lon}",
+    "removeLocation": "Remove location",
     "cancel": "Cancel",
     "close": "Close",
     "uploading": "Uploading…",

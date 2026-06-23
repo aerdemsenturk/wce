@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing 'file'" }, { status: 400 });
   }
 
+  const lat = Number.parseFloat(String(form.get("lat") ?? ""));
+  const lon = Number.parseFloat(String(form.get("lon") ?? ""));
+
   const meta: UploadMeta = {
     filename: String(form.get("filename") ?? "").trim(),
     description: String(form.get("description") ?? ""),
@@ -29,6 +32,8 @@ export async function POST(request: NextRequest) {
     source: String(form.get("source") ?? ""),
     license: String(form.get("license") ?? ""),
     categories: form.getAll("categories").map(String),
+    location:
+      Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null,
   };
 
   if (!meta.filename) {

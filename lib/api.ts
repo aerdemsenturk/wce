@@ -2,6 +2,7 @@ import type {
   CategoryChildren,
   CategoryFile,
   CategoryFileInfo,
+  Coordinates,
   FileDetail,
   Subcategory,
 } from "./types";
@@ -260,6 +261,8 @@ export interface UploadFileMeta {
   source: string;
   license: string;
   categories: string[];
+  /** GPS coordinates read from the photo's EXIF data, if present. */
+  location?: Coordinates | null;
 }
 
 /** Upload one new file to Commons. Posts the binary plus metadata as
@@ -278,12 +281,17 @@ export async function uploadFileToCommons(
   form.set("source", meta.source);
   form.set("license", meta.license);
   for (const c of meta.categories) form.append("categories", c);
+  if (meta.location) {
+    form.set("lat", String(meta.location.lat));
+    form.set("lon", String(meta.location.lon));
+  }
 
   const res = await fetch("/api/commons/upload", { method: "POST", body: form });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? `upload ${res.status}`);
   }
+  for (const c of meta.categories) invalidateCategory(c);
   return res.json();
 }
 

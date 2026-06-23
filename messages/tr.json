@@ -184,6 +184,8 @@
     "filename": "Dosya adı",
     "descriptionPlaceholder": "Bu görselin kısa açıklaması",
     "removeFile": "Dosyayı çıkar",
+    "locationFromExif": "Fotoğrafın EXIF verisinden: {lat}, {lon}",
+    "removeLocation": "Konumu kaldır",
     "cancel": "Vazgeç",
     "close": "Kapat",
     "uploading": "Yükleniyor…",
