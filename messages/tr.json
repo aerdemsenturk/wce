@@ -110,6 +110,7 @@
   },
   "dnd": {
     "moveQueued": "{target} kategorisine taşınacak (yayınlanmadı)",
+    "moveQueuedMany": "{count} dosya {target} kategorisine taşınacak (yayınlanmadı)",
     "moveLabel": "{name}: {target} kategorisine taşındı"
   },
   "rename": {

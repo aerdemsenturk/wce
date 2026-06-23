@@ -110,6 +110,7 @@
   },
   "dnd": {
     "moveQueued": "Will move to {target} (not published yet)",
+    "moveQueuedMany": "{count} files will move to {target} (not published yet)",
     "moveLabel": "{name}: moved to {target}"
   },
   "rename": {

@@ -15,6 +15,9 @@ export interface DragPayload {
    * pending-move overlay without a server round-trip. */
   file?: CategoryFileInfo;
   subcat?: Subcategory;
+  /** When the dragged file is part of a multi-selection, the full set being
+   * moved together (includes `file`). Length > 1 signals a batch move. */
+  files?: CategoryFileInfo[];
 }
 
 export function setDragPayload(e: React.DragEvent, payload: DragPayload): void {
@@ -34,4 +37,31 @@ export function readDragPayload(e: React.DragEvent): DragPayload | null {
 
 export function hasDragPayload(e: React.DragEvent): boolean {
   return e.dataTransfer.types.includes(MIME);
+}
+
+/** Replaces the default single-card drag ghost with a small count pill, so a
+ * multi-selection drag reads as "moving N items" rather than just the one card
+ * the pointer grabbed. The transient node is removed once the browser has
+ * snapshotted it (next tick). */
+export function setMultiDragImage(e: React.DragEvent, count: number): void {
+  const node = document.createElement("div");
+  node.textContent = String(count);
+  Object.assign(node.style, {
+    position: "fixed",
+    top: "-1000px",
+    left: "-1000px",
+    display: "grid",
+    placeItems: "center",
+    minWidth: "32px",
+    height: "32px",
+    padding: "0 10px",
+    borderRadius: "9999px",
+    background: "#0f172a",
+    color: "#fff",
+    font: "600 13px/1 system-ui, sans-serif",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+  } satisfies Partial<CSSStyleDeclaration>);
+  document.body.appendChild(node);
+  e.dataTransfer.setDragImage(node, 16, 16);
+  setTimeout(() => node.remove(), 0);
 }

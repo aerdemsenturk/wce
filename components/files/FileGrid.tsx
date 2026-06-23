@@ -120,6 +120,12 @@ export default function FileGrid() {
     () => applySort(applyFilter(files ?? [], filter), sort),
     [files, filter, sort],
   );
+  // Full info for every checked file, so a drag starting on a checked card can
+  // carry the whole selection, and the merge modal can reuse the same list.
+  const selectedFiles = useMemo(
+    () => (files ?? []).filter((f) => selected.has(f.title)),
+    [files, selected],
+  );
 
   if (!current && !search) {
     return (
@@ -183,7 +189,7 @@ export default function FileGrid() {
             <CategoryCard key={subcat.title} subcat={subcat} />
           ))}
           {visible.map((file) => (
-            <FileCard key={file.pageid} file={file} />
+            <FileCard key={file.pageid} file={file} selectedFiles={selectedFiles} />
           ))}
         </div>
       )}
@@ -191,7 +197,7 @@ export default function FileGrid() {
       {mergeModalOpen && current && (
         <CreateCategoryModal
           parentCategory={current}
-          files={(files ?? []).filter((f) => selected.has(f.title))}
+          files={selectedFiles}
           onClose={() => setMergeModalOpen(false)}
         />
       )}

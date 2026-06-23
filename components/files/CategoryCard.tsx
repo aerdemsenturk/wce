@@ -17,6 +17,7 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
     subcat.name,
   );
   const [previewThumbs, setPreviewThumbs] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +40,7 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
       draggable
       onDragStart={(e) => {
         if (!current) return;
+        setDragging(true);
         setDragPayload(e, {
           pageTitle: withCategoryPrefix(subcat.name),
           fromCategory: current,
@@ -46,11 +48,14 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
           subcat,
         });
       }}
+      onDragEnd={() => setDragging(false)}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={() => selectPath([...path, subcat.name])}
-      className={`group relative flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
+      className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
+        dragging ? "opacity-50" : ""
+      } ${
         isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-amber-200"
       }`}
     >

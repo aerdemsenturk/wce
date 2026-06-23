@@ -36,6 +36,7 @@ export default function CategoryNode({
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [children, setChildren] = useState<Subcategory[] | null>(null);
 
   const isActive = activePath.join("/") === path.join("/");
@@ -122,6 +123,15 @@ export default function CategoryNode({
     }
   }, [isActive]);
 
+  // Spring-loaded folder: hovering a dragged item over a collapsed, expandable
+  // node auto-expands it after a short pause, so the user can drill down and
+  // drop into a nested category without letting go.
+  useEffect(() => {
+    if (!(isOver && expandable && !expanded)) return;
+    const timer = setTimeout(() => setExpanded(true), 600);
+    return () => clearTimeout(timer);
+  }, [isOver, expandable, expanded]);
+
   return (
     <li>
       <div
@@ -129,6 +139,7 @@ export default function CategoryNode({
         draggable={parent != null}
         onDragStart={(e) => {
           if (!parent) return;
+          setDragging(true);
           setDragPayload(e, {
             pageTitle: withCategoryPrefix(name),
             fromCategory: parent,
@@ -142,10 +153,13 @@ export default function CategoryNode({
             },
           });
         }}
+        onDragEnd={() => setDragging(false)}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         className={`group flex items-center gap-1 rounded-md pr-2 text-sm ${
+          parent != null ? "cursor-grab active:cursor-grabbing" : ""
+        } ${dragging ? "opacity-50" : ""} ${
           isActive ? "bg-slate-900 text-white" : "hover:bg-slate-100"
         } ${isOver ? "ring-2 ring-inset ring-slate-900" : ""}`}
         style={{ paddingLeft: `${level * 12 + 4}px` }}

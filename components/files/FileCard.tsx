@@ -1,17 +1,30 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import type { CategoryFileInfo } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
 import { useBrowser } from "@/components/browser/BrowserProvider";
-import { setDragPayload } from "@/lib/dnd";
+import { setDragPayload, setMultiDragImage } from "@/lib/dnd";
 import StatusDots from "@/components/ui/StatusDots";
 
-export default function FileCard({ file }: { file: CategoryFileInfo }) {
+export default function FileCard({
+  file,
+  selectedFiles,
+}: {
+  file: CategoryFileInfo;
+  /** Full info for every checked file in the grid, so a drag that starts on a
+   * checked card can carry the whole selection. */
+  selectedFiles: CategoryFileInfo[];
+}) {
   const { current, selectedFile, selectFile, selected, toggleSelected } =
     useBrowser();
   const active = selectedFile?.pageid === file.pageid;
   const checked = selected.has(file.title);
+  const [dragging, setDragging] = useState(false);
+  // Dragging a checked card moves the whole selection; an unchecked one moves
+  // just itself, even if other cards happen to be checked.
+  const dragsSelection = checked && selectedFiles.length > 1;
 
   return (
     <button
@@ -19,10 +32,25 @@ export default function FileCard({ file }: { file: CategoryFileInfo }) {
       draggable
       onDragStart={(e) => {
         if (!current) return;
-        setDragPayload(e, { pageTitle: file.title, fromCategory: current, kind: "file", file });
+        setDragging(true);
+        if (dragsSelection) {
+          setDragPayload(e, {
+            pageTitle: file.title,
+            fromCategory: current,
+            kind: "file",
+            file,
+            files: selectedFiles,
+          });
+          setMultiDragImage(e, selectedFiles.length);
+        } else {
+          setDragPayload(e, { pageTitle: file.title, fromCategory: current, kind: "file", file });
+        }
       }}
+      onDragEnd={() => setDragging(false)}
       onClick={() => selectFile(file)}
-      className={`group relative flex flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md ${
+      className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
+        dragging ? "opacity-50" : ""
+      } ${
         active ? "border-slate-900 ring-1 ring-slate-900" : "border-border-base"
       }`}
     >
