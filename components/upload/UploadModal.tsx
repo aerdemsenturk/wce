@@ -99,6 +99,7 @@ export default function UploadModal({
   async function uploadAll() {
     setUploading(true);
     let uploaded = 0;
+    let anyFailed = false;
     // Sequential: gives per-file progress and is gentle on the API.
     for (const row of rows) {
       if (row.status === "done") continue;
@@ -121,6 +122,7 @@ export default function UploadModal({
           status: "error",
           error: err instanceof Error ? err.message : t("genericError"),
         });
+        anyFailed = true;
       }
     }
     setUploading(false);
@@ -129,11 +131,9 @@ export default function UploadModal({
       showToast({ message: t("success", { count: uploaded }), tone: "success" });
       bumpVersion(); // so the current category's grid picks up the new files
     }
-    // Close only when everything succeeded; otherwise stay so failures show.
-    setRows((prev) => {
-      if (prev.length > 0 && prev.every((r) => r.status === "done")) onClose();
-      return prev;
-    });
+    // Every attempted file succeeded (none were left failing) — close. On any
+    // failure, stay open so the errors remain visible for a retry.
+    if (!anyFailed) onClose();
   }
 
   return (

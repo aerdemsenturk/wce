@@ -41,3 +41,22 @@ button:disabled,
 input:disabled {
   cursor: not-allowed;
 }
+
+/* Count pill used as the custom drag image for a multi-selection drag. The
+ * node is created/removed imperatively (see lib/dnd.ts), so it's styled by a
+ * global class rather than utilities. Parked off-screen until snapshotted. */
+.wce-drag-count {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: var(--foreground);
+  color: var(--panel);
+  font: 600 13px/1 var(--font-sans), system-ui, sans-serif;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}

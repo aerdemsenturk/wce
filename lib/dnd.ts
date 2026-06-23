@@ -45,22 +45,8 @@ export function hasDragPayload(e: React.DragEvent): boolean {
  * snapshotted it (next tick). */
 export function setMultiDragImage(e: React.DragEvent, count: number): void {
   const node = document.createElement("div");
+  node.className = "wce-drag-count";
   node.textContent = String(count);
-  Object.assign(node.style, {
-    position: "fixed",
-    top: "-1000px",
-    left: "-1000px",
-    display: "grid",
-    placeItems: "center",
-    minWidth: "32px",
-    height: "32px",
-    padding: "0 10px",
-    borderRadius: "9999px",
-    background: "#0f172a",
-    color: "#fff",
-    font: "600 13px/1 system-ui, sans-serif",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-  } satisfies Partial<CSSStyleDeclaration>);
   document.body.appendChild(node);
   e.dataTransfer.setDragImage(node, 16, 16);
   setTimeout(() => node.remove(), 0);
