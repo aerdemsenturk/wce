@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import EditCategoryModal from "./EditCategoryModal";
+import AddCategoryModal from "./AddCategoryModal";
 
 export default function Breadcrumb() {
   const t = useTranslations("rename");
+  const tSidebar = useTranslations("sidebar");
   const { path, selectPath } = useBrowser();
   const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   if (path.length === 0) return null;
   const current = path[path.length - 1];
@@ -33,6 +36,15 @@ export default function Breadcrumb() {
                   >
                     <PencilIcon />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddOpen(true)}
+                    aria-label={tSidebar("addSubcategory")}
+                    title={tSidebar("addSubcategory")}
+                    className="text-slate-300 hover:text-slate-600"
+                  >
+                    <PlusIcon />
+                  </button>
                 </span>
               ) : (
                 <button
@@ -55,7 +67,24 @@ export default function Breadcrumb() {
           onClose={() => setEditOpen(false)}
         />
       )}
+
+      {addOpen && (
+        <AddCategoryModal parentCategory={current} onClose={() => setAddOpen(false)} />
+      )}
     </>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M6 2.5V9.5M2.5 6H9.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
