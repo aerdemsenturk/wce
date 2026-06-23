@@ -9,13 +9,16 @@ import AddCategoryModal from "./AddCategoryModal";
 export default function Breadcrumb() {
   const t = useTranslations("rename");
   const tSidebar = useTranslations("sidebar");
-  const { path, selectPath } = useBrowser();
+  const { path, selectPath, favoriteCategories, toggleFavorite } = useBrowser();
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   if (path.length === 0) return null;
   const current = path[path.length - 1];
   const parent = path.length > 1 ? path[path.length - 2] : null;
+  const isFavorite = favoriteCategories.some(
+    (n) => n.toLowerCase() === current.toLowerCase(),
+  );
 
   return (
     <>
@@ -44,6 +47,20 @@ export default function Breadcrumb() {
                     className="text-slate-300 hover:text-slate-600"
                   >
                     <PlusIcon />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleFavorite(current)}
+                    aria-label={tSidebar(isFavorite ? "unfavorite" : "favorite")}
+                    title={tSidebar(isFavorite ? "unfavorite" : "favorite")}
+                    aria-pressed={isFavorite}
+                    className={
+                      isFavorite
+                        ? "text-amber-400 hover:text-amber-500"
+                        : "text-slate-300 hover:text-slate-600"
+                    }
+                  >
+                    <StarIcon filled={isFavorite} />
                   </button>
                 </span>
               ) : (
@@ -83,6 +100,25 @@ function PlusIcon() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill={filled ? "currentColor" : "none"}
+      aria-hidden
+    >
+      <path
+        d="M8 2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.8 4.4 13.2l.7-4L2.2 6.3l4-.6L8 2Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
       />
     </svg>
   );

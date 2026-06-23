@@ -24,7 +24,10 @@
     "noWikidata": "Wikidata bağlantısı yok",
     "addSubcategory": "Alt kategori ekle",
     "goToParent": "Üst kategoriye git: {name}",
-    "recent": "Son ziyaret edilenler"
+    "recent": "Son ziyaret edilenler",
+    "favorites": "Favori kategorilerim",
+    "favorite": "Favorilere ekle",
+    "unfavorite": "Favorilerden çıkar"
   },
   "filters": {
     "all": "Tümü",

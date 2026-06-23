@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import CategoryTree from "@/components/category/CategoryTree";
+import FavoriteCategories from "@/components/category/FavoriteCategories";
 import RecentCategories from "@/components/category/RecentCategories";
 
 export default function Sidebar() {
@@ -15,6 +16,7 @@ export default function Sidebar() {
       <div className="flex-1 overflow-y-auto p-4">
         <CategoryTree />
       </div>
+      <FavoriteCategories />
       <RecentCategories />
     </aside>
   );

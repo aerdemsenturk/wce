@@ -8,6 +8,10 @@ import type { CategoryWikidata } from "@/lib/types";
 import { wikidataNewItemUrl } from "@/lib/category";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 
+/** Hard cap on the Wikidata label shown in the badge; the full text stays in
+ * the `title` tooltip. */
+const MAX_LABEL_CHARS = 40;
+
 export default function WikidataBadge() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
@@ -64,6 +68,10 @@ export default function WikidataBadge() {
   }
 
   const wikidataUrl = `https://www.wikidata.org/wiki/${wikidata.id}`;
+  const label =
+    wikidata.label && wikidata.label.length > MAX_LABEL_CHARS
+      ? `${wikidata.label.slice(0, MAX_LABEL_CHARS).trimEnd()}…`
+      : wikidata.label;
   return (
     <a
       href={wikidataUrl}
@@ -73,9 +81,9 @@ export default function WikidataBadge() {
       className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
     >
       <span className="shrink-0 font-mono">{wikidata.id}</span>
-      {wikidata.label && (
+      {label && (
         <span className="min-w-0 truncate border-l border-sky-200 pl-1.5">
-          {wikidata.label}
+          {label}
         </span>
       )}
       <ExternalIcon />

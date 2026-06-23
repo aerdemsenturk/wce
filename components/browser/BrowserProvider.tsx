@@ -17,6 +17,10 @@ import type { PendingChange } from "@/lib/pendingChanges";
 import { categoryToAppPath, categoryFromPath } from "@/lib/category";
 import { getRecentCategories, pushRecentCategory } from "@/lib/recentCategories";
 import {
+  getFavoriteCategories,
+  toggleFavoriteCategory,
+} from "@/lib/favoriteCategories";
+import {
   updateFileDescription,
   moveCategoryMembership,
   removeCategoryMembership,
@@ -49,6 +53,10 @@ interface BrowserState {
   current: string | null;
   /** Recently visited category names, most recent first (for the sidebar). */
   recentCategories: string[];
+  /** Favorited (pinned) category names (for the sidebar). */
+  favoriteCategories: string[];
+  /** Add/remove a category from favorites. */
+  toggleFavorite: (name: string) => void;
   setRoot: (name: string) => void;
   clearRoot: () => void;
   /** Select a category by its full path from root. */
@@ -133,6 +141,7 @@ export default function BrowserProvider({
   const [publishing, setPublishing] = useState(false);
   const [publishResults, setPublishResults] = useState<PublishResult[] | null>(null);
   const [recentCategories, setRecentCategories] = useState<string[]>([]);
+  const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
 
   // On first mount: load the recently-visited list, then restore the last
   // visited gallery — the most recent entry (or, on a deep link, the linked
@@ -142,6 +151,7 @@ export default function BrowserProvider({
     const stored = getRecentCategories();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration read
     setRecentCategories(stored);
+    setFavoriteCategories(getFavoriteCategories());
 
     if (initialClean) {
       localStorage.setItem(ROOT_STORAGE_KEY, initialClean);
@@ -210,6 +220,10 @@ export default function BrowserProvider({
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const toggleFavorite = useCallback((name: string) => {
+    setFavoriteCategories(toggleFavoriteCategory(name));
   }, []);
 
   const setRoot = useCallback((name: string) => {
@@ -392,6 +406,8 @@ export default function BrowserProvider({
       path,
       current,
       recentCategories,
+      favoriteCategories,
+      toggleFavorite,
       setRoot,
       clearRoot,
       selectPath,
@@ -425,6 +441,8 @@ export default function BrowserProvider({
       path,
       current,
       recentCategories,
+      favoriteCategories,
+      toggleFavorite,
       setRoot,
       clearRoot,
       selectPath,

@@ -24,7 +24,10 @@
     "noWikidata": "No Wikidata link",
     "addSubcategory": "Add subcategory",
     "goToParent": "Go to parent: {name}",
-    "recent": "Recently visited"
+    "recent": "Recently visited",
+    "favorites": "My favorites",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites"
   },
   "filters": {
     "all": "All",
