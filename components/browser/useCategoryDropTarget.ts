@@ -11,7 +11,7 @@ import { useBrowser } from "./BrowserProvider";
  * until the user hits Publish). */
 export function useCategoryDropTarget(toCategory: string) {
   const t = useTranslations("dnd");
-  const { showToast, addChange } = useBrowser();
+  const { showToast, addChange, clearSelected } = useBrowser();
   const [isOver, setIsOver] = useState(false);
 
   function onDragOver(e: React.DragEvent) {
@@ -60,6 +60,7 @@ export function useCategoryDropTarget(toCategory: string) {
         message: t("moveQueuedMany", { count: batch.length, target: toCategory }),
         tone: "success",
       });
+      clearSelected();
       return;
     }
 

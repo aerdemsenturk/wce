@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
@@ -22,6 +22,10 @@ export default function Header() {
     clearPublishResults,
   } = useBrowser();
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (publishResults) setConfirmOpen(false);
+  }, [publishResults]);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border-base bg-panel px-4">
@@ -70,14 +74,12 @@ export default function Header() {
         <LanguageToggle />
       </div>
 
-      {confirmOpen && (
+      {(confirmOpen || publishing) && (
         <PublishConfirmModal
           changes={pendingChanges}
+          publishing={publishing}
           onClose={() => setConfirmOpen(false)}
-          onConfirm={() => {
-            setConfirmOpen(false);
-            void publishAll();
-          }}
+          onConfirm={() => void publishAll()}
         />
       )}
 

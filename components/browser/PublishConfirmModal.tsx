@@ -6,10 +6,12 @@ import Modal, { ModalActions } from "@/components/ui/Modal";
 
 export default function PublishConfirmModal({
   changes,
+  publishing,
   onConfirm,
   onClose,
 }: {
   changes: PendingChange[];
+  publishing: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -18,13 +20,15 @@ export default function PublishConfirmModal({
   return (
     <Modal
       title={t("confirmTitle", { count: changes.length })}
-      onClose={onClose}
+      onClose={publishing ? () => {} : onClose}
       footer={
         <ModalActions
           onCancel={onClose}
           cancelLabel={t("confirmCancel")}
+          cancelDisabled={publishing}
           onConfirm={onConfirm}
-          confirmLabel={t("confirmConfirm")}
+          confirmLabel={publishing ? t("confirmPublishing") : t("confirmConfirm")}
+          confirmDisabled={publishing}
         />
       }
     >

@@ -170,6 +170,7 @@
     "close": "Kapat",
     "confirmTitle": "{count} değişikliği yayınla",
     "confirmConfirm": "Yayınla",
+    "confirmPublishing": "Yayınlanıyor…",
     "confirmCancel": "Vazgeç"
   },
   "upload": {

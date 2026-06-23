@@ -42,12 +42,14 @@ export default function Modal({
 export function ModalActions({
   onCancel,
   cancelLabel,
+  cancelDisabled,
   onConfirm,
   confirmLabel,
   confirmDisabled,
 }: {
   onCancel: () => void;
   cancelLabel: string;
+  cancelDisabled?: boolean;
   onConfirm: () => void;
   confirmLabel: string;
   confirmDisabled?: boolean;
@@ -57,7 +59,8 @@ export function ModalActions({
       <button
         type="button"
         onClick={onCancel}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100"
+        disabled={cancelDisabled}
+        className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-40"
       >
         {cancelLabel}
       </button>

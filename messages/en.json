@@ -170,6 +170,7 @@
     "close": "Close",
     "confirmTitle": "Publish {count} changes",
     "confirmConfirm": "Publish",
+    "confirmPublishing": "Publishing…",
     "confirmCancel": "Cancel"
   },
   "upload": {
