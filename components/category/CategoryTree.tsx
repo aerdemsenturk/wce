@@ -10,8 +10,7 @@ import CategoryNode from "./CategoryNode";
 export default function CategoryTree() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { root, path, setRoot, clearRoot, setTreeParent, version } = useBrowser();
-  const [input, setInput] = useState("");
+  const { root, path, clearRoot, setTreeParent, version } = useBrowser();
   // Parents are tagged with the category they belong to: when the root changes
   // (e.g. clicking another favorite) the previous fetch's parents must not be
   // reused for the new root, or we'd promote the wrong parent onto the tree.
@@ -63,33 +62,7 @@ export default function CategoryTree() {
   const treeTop = path[0] ?? root;
 
   if (!root) {
-    return (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          setRoot(input);
-        }}
-        className="space-y-2"
-      >
-        <label className="block text-sm text-slate-600">
-          {t("rootPrompt")}
-        </label>
-        <input
-          autoFocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={t("rootPlaceholder")}
-          className="w-full rounded-md border border-border-base bg-background px-3 py-1.5 text-sm outline-none focus:border-slate-400"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim()}
-          className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-        >
-          {t("load")}
-        </button>
-      </form>
-    );
+    return <p className="text-sm text-slate-400">{t("empty")}</p>;
   }
 
   return (

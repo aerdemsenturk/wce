@@ -311,6 +311,23 @@ export async function removeFileLocation(title: string): Promise<void> {
   }
 }
 
+/** Tag a file with {{delete|reason}}, nominating it for deletion review on
+ * Commons (queued write path). */
+export async function nominateFileDeletion(title: string, reason: string): Promise<void> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "nominateDeletion", title, reason }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `nominateDeletion ${res.status}`);
+  }
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+}
+
 /** Search Wikidata items by label, for the add-depict autocomplete. */
 export async function searchWikidataItems(
   query: string,

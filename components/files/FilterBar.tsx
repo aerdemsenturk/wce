@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import SearchBox from "@/components/layout/SearchBox";
 import type { FilterCounts, FilterKey, SortKey } from "./filters";
 
 const FILTERS: { key: FilterKey; label: keyof Messages }[] = [
@@ -65,18 +66,23 @@ export default function FilterBar({
         })}
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-slate-500">
-        {t("sortLabel")}
+      <div className="flex items-center gap-2">
+        <div className="w-40">
+          <SearchBox />
+        </div>
+
         <select
           value={sort}
           onChange={(e) => onSort(e.target.value as SortKey)}
+          aria-label={t("sortLabel")}
+          title={t("sortLabel")}
           className="rounded-md border border-border-base bg-panel px-2 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
         >
           <option value="name">{t("sortName")}</option>
           <option value="date">{t("sortDate")}</option>
           <option value="missing">{t("sortMissing")}</option>
         </select>
-      </label>
+      </div>
     </div>
   );
 }

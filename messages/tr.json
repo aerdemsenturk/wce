@@ -13,10 +13,7 @@
   },
   "sidebar": {
     "title": "Kategoriler",
-    "rootPrompt": "Bir Commons kategorisi adı yazın",
     "changeRoot": "Yeni arama",
-    "rootPlaceholder": "ör. Lycian Way",
-    "load": "Yükle",
     "empty": "Henüz kategori seçilmedi",
     "loading": "Yükleniyor…",
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
@@ -97,7 +94,14 @@
     "addDepictTitle": "Konu (Depicts) ekle",
     "depictSearchPlaceholder": "Wikidata öğesi ara…",
     "searching": "Aranıyor…",
-    "noResults": "Sonuç bulunamadı"
+    "noResults": "Sonuç bulunamadı",
+    "nominateDeletion": "Silinmeye aday göster",
+    "nominateDeletionTitle": "Silinmeye aday göster",
+    "nominateDeletionReason": "Sebep",
+    "nominateDeletionReasonPlaceholder": "örn. yanlış çözünürlük",
+    "nominateDeletionLabel": "{name}: silinmeye aday gösterildi",
+    "nominatedForDeletion": "Silinmeye aday gösterildi",
+    "undoNominateDeletion": "Geri al"
   },
   "search": {
     "resultsFor": "“{query}” için sonuçlar",

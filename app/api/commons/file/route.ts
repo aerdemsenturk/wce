@@ -4,6 +4,7 @@ import {
   editFileDescription,
   editFileLocation,
   removeFileLocation,
+  nominateFileDeletion,
   getFileDetail,
   removeDepict,
 } from "@/lib/mediawiki";
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/commons/file  { op: "removeDepict", statementId }
 // PATCH /api/commons/file  { op: "location", title, lat, lon }
 // PATCH /api/commons/file  { op: "removeLocation", title }
+// PATCH /api/commons/file  { op: "nominateDeletion", title, reason }
 export async function PATCH(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     op?: string;
@@ -55,6 +57,7 @@ export async function PATCH(request: NextRequest) {
     statementId?: string;
     lat?: number;
     lon?: number;
+    reason?: string;
   } | null;
 
   try {
@@ -103,6 +106,19 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "Missing 'title'" }, { status: 400 });
       }
       await removeFileLocation(locationTitle);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body?.op === "nominateDeletion") {
+      const deletionTitle = body.title?.trim();
+      const reason = body.reason?.trim();
+      if (!deletionTitle || !reason) {
+        return NextResponse.json(
+          { error: "Missing 'title' or 'reason'" },
+          { status: 400 },
+        );
+      }
+      await nominateFileDeletion(deletionTitle, reason);
       return NextResponse.json({ ok: true });
     }
 

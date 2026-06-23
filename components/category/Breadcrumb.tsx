@@ -60,9 +60,6 @@ export default function Breadcrumb() {
     (n) => n.toLowerCase() === current.toLowerCase(),
   );
 
-  // The breadcrumb segment that is the entered category (`root`) is the only
-  // one `setTreeParent` can re-parent — see BrowserProvider's setTreeParent.
-  const rootIndex = root ? path.indexOf(root) : -1;
   const promoted = path.length > 1 ? path[0] : null;
   const altParents =
     parentData && parentData.root === root
@@ -74,42 +71,13 @@ export default function Breadcrumb() {
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1 text-sm">
         {path.map((name, i) => {
           const isLast = i === path.length - 1;
-          const showParentSwitcher = i === rootIndex && altParents.length > 0;
+          // The switcher controls which name appears at the very start of the
+          // trail (`path[0]`), so it belongs right after that first segment —
+          // not next to the entered category, which may sit deeper in `path`.
+          const showParentSwitcher = i === 0 && altParents.length > 0;
           return (
             <span key={`${name}-${i}`} className="flex items-center gap-1">
               {i > 0 && <span className="text-slate-300">/</span>}
-              {showParentSwitcher && (
-                <span ref={menuRef} className="relative flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setParentMenuOpen((open) => !open)}
-                    aria-label={tSidebar("otherParents", { count: altParents.length })}
-                    title={tSidebar("otherParents", { count: altParents.length })}
-                    aria-expanded={parentMenuOpen}
-                    className="text-slate-300 hover:text-slate-600"
-                  >
-                    <ChevronIcon />
-                  </button>
-                  {parentMenuOpen && (
-                    <div className="absolute left-0 top-full z-10 mt-1 min-w-[10rem] rounded-md border border-border-base bg-background py-1 shadow-md">
-                      {altParents.map((p) => (
-                        <button
-                          key={p.title}
-                          type="button"
-                          onClick={() => {
-                            setTreeParent(p.name);
-                            setParentMenuOpen(false);
-                          }}
-                          title={tSidebar("useAsParent", { name: p.name })}
-                          className="block w-full truncate px-3 py-1 text-left text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </span>
-              )}
               {isLast ? (
                 <span className="group flex items-center gap-1">
                   <span className="font-semibold text-slate-900">{name}</span>
@@ -153,6 +121,38 @@ export default function Breadcrumb() {
                 >
                   {name}
                 </button>
+              )}
+              {showParentSwitcher && (
+                <span ref={menuRef} className="relative flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setParentMenuOpen((open) => !open)}
+                    aria-label={tSidebar("otherParents", { count: altParents.length })}
+                    title={tSidebar("otherParents", { count: altParents.length })}
+                    aria-expanded={parentMenuOpen}
+                    className="text-slate-300 hover:text-slate-600"
+                  >
+                    <ChevronIcon />
+                  </button>
+                  {parentMenuOpen && (
+                    <div className="absolute left-0 top-full z-10 mt-1 min-w-[10rem] rounded-md border border-border-base bg-background py-1 shadow-md">
+                      {altParents.map((p) => (
+                        <button
+                          key={p.title}
+                          type="button"
+                          onClick={() => {
+                            setTreeParent(p.name);
+                            setParentMenuOpen(false);
+                          }}
+                          title={tSidebar("useAsParent", { name: p.name })}
+                          className="block w-full truncate px-3 py-1 text-left text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </span>
               )}
             </span>
           );

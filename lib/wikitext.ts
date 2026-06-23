@@ -460,6 +460,13 @@ export function withRemovedCategory(
   );
 }
 
+/** Tag a page with `{{delete|reason}}`, nominating it for deletion review —
+ * inserted at the very top, the conventional place for the tag on Commons. */
+export function withDeletionNomination(wikitext: string, reason: string): string {
+  const escaped = escapeForTemplateParam(reason.trim());
+  return `{{delete|1=${escaped}}}\n${wikitext}`;
+}
+
 /** Add a `[[Category:Name]]` link to a page's wikitext (appended at the end,
  * the conventional place for category links on Commons). */
 export function withAddedCategory(wikitext: string, category: string): string {

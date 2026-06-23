@@ -101,7 +101,7 @@ export default function CategoryPicker({
         className={formFieldInputClassName}
       />
       {open && query.trim() && (
-        <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border-base bg-panel shadow-lg">
+        <ul className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border-base bg-panel shadow-lg">
           {loading && (
             <li className="px-2 py-1.5 text-sm text-slate-400">{t("searching")}</li>
           )}

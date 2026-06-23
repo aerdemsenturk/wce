@@ -107,6 +107,14 @@ export interface RemoveLocationChange {
   label: string;
 }
 
+export interface NominateDeletionChange {
+  id: string;
+  type: "nominateDeletion";
+  fileTitle: string; // "File:Foo.jpg"
+  reason: string;
+  label: string;
+}
+
 export type PendingChange =
   | DescriptionChange
   | MoveChange
@@ -117,7 +125,20 @@ export type PendingChange =
   | AddDepictChange
   | RemoveDepictChange
   | LocationChange
-  | RemoveLocationChange;
+  | RemoveLocationChange
+  | NominateDeletionChange;
+
+/** Whether `fileTitle` has a not-yet-published deletion nomination queued. */
+export function overlayDeletionNomination(
+  fileTitle: string,
+  changes: PendingChange[],
+): string | null {
+  const change = changes.find(
+    (c): c is NominateDeletionChange =>
+      c.type === "nominateDeletion" && c.fileTitle === fileTitle,
+  );
+  return change ? change.reason : null;
+}
 
 /** Walks pending renames back to the name the category still has on
  * Commons, so views can fetch/compare using a name that actually exists

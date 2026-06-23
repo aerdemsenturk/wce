@@ -6,7 +6,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
 import PublishResultsModal from "@/components/browser/PublishResultsModal";
 import LanguageToggle from "./LanguageToggle";
-import SearchBox from "./SearchBox";
+import CommonsCategorySearch from "./CommonsCategorySearch";
 
 export default function Header() {
   const t = useTranslations("header");
@@ -35,7 +35,7 @@ export default function Header() {
       </div>
 
       <div className="mx-auto w-full max-w-md">
-        <SearchBox />
+        <CommonsCategorySearch />
       </div>
 
       <div className="flex items-center gap-2">

@@ -19,6 +19,7 @@ import {
   withMovedCategory,
   withRemovedCategory,
   withAddedCategory,
+  withDeletionNomination,
   buildNewCategoryWikitext,
   parseWikidataQid,
 } from "./wikitext";
@@ -1134,6 +1135,24 @@ export async function uploadFile(
   }
 
   return { title: `File:${data.upload?.filename ?? filename}` };
+}
+
+/** Tag a file with `{{delete|reason}}`, nominating it for deletion review on
+ * Commons (Commons:Deletion requests). Does not create the deletion request
+ * subpage itself. */
+export async function nominateFileDeletion(
+  title: string,
+  reason: string,
+): Promise<void> {
+  const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
+
+  const page = await fetchPageWikitext(fileTitle);
+  if (!page) {
+    throw new Error("File not found");
+  }
+
+  const updated = withDeletionNomination(page.wikitext, reason);
+  await postEdit(fileTitle, updated, "Nominate for deletion via WCE", page.timestamp);
 }
 
 /** Remove a file's {{Location}}/{{Object location}} template outright. */

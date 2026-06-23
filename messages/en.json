@@ -13,10 +13,7 @@
   },
   "sidebar": {
     "title": "Categories",
-    "rootPrompt": "Type a Commons category name",
     "changeRoot": "New search",
-    "rootPlaceholder": "e.g. Lycian Way",
-    "load": "Load",
     "empty": "No category selected yet",
     "loading": "Loading…",
     "fileCount": "{count, plural, =0 {no files} one {# file} other {# files}}",
@@ -97,7 +94,14 @@
     "addDepictTitle": "Add depicts",
     "depictSearchPlaceholder": "Search Wikidata item…",
     "searching": "Searching…",
-    "noResults": "No results"
+    "noResults": "No results",
+    "nominateDeletion": "Nominate for deletion",
+    "nominateDeletionTitle": "Nominate for deletion",
+    "nominateDeletionReason": "Reason",
+    "nominateDeletionReasonPlaceholder": "e.g. wrong resolution",
+    "nominateDeletionLabel": "{name}: nominated for deletion",
+    "nominatedForDeletion": "Nominated for deletion",
+    "undoNominateDeletion": "Undo"
   },
   "search": {
     "resultsFor": "Results for “{query}”",

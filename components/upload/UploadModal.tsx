@@ -32,6 +32,19 @@ const LICENSE_OPTIONS = [
   { value: "pd-self", labelKey: "licensePdSelf" },
 ] as const;
 
+/** Human-readable file size, e.g. "2.3 MB". */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 /** Today (or the file's own modified date) as YYYY-MM-DD for the date field. */
 function isoDate(ms?: number): string {
   const d = ms ? new Date(ms) : new Date();
@@ -310,11 +323,16 @@ export default function UploadModal({
               key={row.id}
               className="flex gap-3 rounded-md border border-border-base p-2"
             >
-              <FilePreview
-                file={row.file}
-                alt={row.filename}
-                className="h-16 w-16 shrink-0 rounded bg-slate-100 object-cover"
-              />
+              <div className="flex shrink-0 flex-col items-center gap-1">
+                <FilePreview
+                  file={row.file}
+                  alt={row.filename}
+                  className="h-16 w-16 rounded bg-slate-100 object-cover"
+                />
+                <span className="text-[10px] text-slate-400">
+                  {formatFileSize(row.file.size)}
+                </span>
+              </div>
 
               <div className="min-w-0 flex-1 space-y-1.5">
                 <input

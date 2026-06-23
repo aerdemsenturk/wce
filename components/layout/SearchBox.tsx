@@ -32,12 +32,12 @@ export default function SearchBox() {
           if (e.target.value === "") setSearch(null);
         }}
         placeholder={t("searchPlaceholder")}
-        className="w-full rounded-md border border-border-base bg-background py-1.5 pl-3 pr-9 text-sm outline-none focus:border-slate-400"
+        className="w-full rounded-md border border-border-base bg-background py-1 pl-2.5 pr-7 text-xs outline-none focus:border-slate-400"
       />
       <button
         type="submit"
         aria-label={t("searchPlaceholder")}
-        className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-slate-400 hover:text-slate-700"
+        className="absolute right-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded text-slate-400 hover:text-slate-700"
       >
         <SearchIcon />
       </button>
@@ -47,7 +47,7 @@ export default function SearchBox() {
 
 function SearchIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
       <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
       <path
         d="M10.5 10.5L14 14"

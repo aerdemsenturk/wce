@@ -8,6 +8,7 @@ import {
   overlayCategories,
   overlayDepicts,
   overlayLocation,
+  overlayDeletionNomination,
 } from "@/lib/pendingChanges";
 import type { CategoryFileInfo, FileDetail } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
@@ -17,6 +18,7 @@ import DescriptionField from "./DescriptionField";
 import LocationSection from "./LocationSection";
 import DepictsList from "./DepictsList";
 import AddFileCategoryModal from "./AddFileCategoryModal";
+import NominateDeletionModal from "./NominateDeletionModal";
 
 export default function DetailPanel() {
   const t = useTranslations("detail");
@@ -68,7 +70,7 @@ export default function DetailPanel() {
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex h-[min(85vh,800px)] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-panel shadow-2xl"
+        className="flex h-[min(94vh,1100px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-panel shadow-2xl lg:max-w-5xl xl:max-w-6xl"
       >
         <DetailContent key={selectedFile.pageid} title={selectedFile.title} />
       </div>
@@ -99,6 +101,7 @@ function DetailContent({ title }: { title: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
+  const [nominatingDeletion, setNominatingDeletion] = useState(false);
   // Maps category name -> the id of the queued removeCategory change, so a
   // second click can find and cancel that exact change.
   const [pendingRemovedCategories, setPendingRemovedCategories] = useState<
@@ -134,12 +137,39 @@ function DetailContent({ title }: { title: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure
   }, [title, locale]);
 
+  const deletionReason = overlayDeletionNomination(title, pendingChanges);
+  const deletionChangeId = pendingChanges.find(
+    (c) => c.type === "nominateDeletion" && c.fileTitle === title,
+  )?.id;
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border-base px-4 py-3">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
           {detail?.name ?? title.replace(/^File:/i, "")}
         </h2>
+        {deletionChangeId ? (
+          <button
+            type="button"
+            onClick={() => removeChange(deletionChangeId)}
+            title={deletionReason ?? undefined}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100"
+          >
+            <TrashIcon />
+            {t("nominatedForDeletion")}
+          </button>
+        ) : (
+          detail && (
+            <button
+              type="button"
+              onClick={() => setNominatingDeletion(true)}
+              title={t("nominateDeletion")}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <TrashIcon />
+            </button>
+          )
+        )}
         <button
           type="button"
           onClick={() => selectFile(null)}
@@ -150,7 +180,7 @@ function DetailContent({ title }: { title: string }) {
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {loading && (
           <p className="py-10 text-center text-sm text-slate-400">
             {tc("loading")}
@@ -167,146 +197,156 @@ function DetailContent({ title }: { title: string }) {
             {detail.thumbUrl && (
               <ExternalLink
                 href={detail.descriptionUrl}
-                className="block overflow-hidden rounded-lg border border-border-base bg-slate-50"
+                className="block bg-black"
               >
                 {/* Plain img: large external thumbnail, no optimization needed. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={detail.thumbUrl}
                   alt={detail.name}
-                  className="mx-auto max-h-72 w-full object-contain"
+                  className="mx-auto max-h-[min(60vh,650px)] w-full object-contain"
                 />
               </ExternalLink>
             )}
 
-            <Field label={t("description")}>
-              <DescriptionField
-                title={detail.title}
-                descriptions={detail.descriptions}
-                onSaved={(next) =>
-                  setDetail((prev) => (prev ? { ...prev, descriptions: next } : prev))
-                }
-              />
-            </Field>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field label={t("date")}>
-                <Text value={detail.date} />
+            <div className="space-y-5 px-4 pb-4">
+              <Field label={t("description")}>
+                <DescriptionField
+                  title={detail.title}
+                  descriptions={detail.descriptions}
+                  onSaved={(next) =>
+                    setDetail((prev) => (prev ? { ...prev, descriptions: next } : prev))
+                  }
+                />
               </Field>
-              <Field label={t("license")}>
-                <LicenseBadge
-                  short={detail.license.short}
-                  url={detail.license.url}
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={t("date")}>
+                  <Text value={detail.date} />
+                </Field>
+                <Field label={t("license")}>
+                  <LicenseBadge
+                    short={detail.license.short}
+                    url={detail.license.url}
+                  />
+                </Field>
+              </div>
+
+              <Field label={t("author")}>
+                <Text value={detail.author} />
+              </Field>
+
+              <Field label={t("categories")}>
+                <div className="flex flex-wrap gap-1.5">
+                  {detail.categories.map((cat) => {
+                    const changeId = pendingRemovedCategories.get(cat);
+                    const removed = changeId !== undefined;
+                    return (
+                      <span
+                        key={cat}
+                        title={cat}
+                        className={`group flex max-w-full items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-xs ${
+                          removed
+                            ? "bg-red-50 text-red-500"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          disabled={removed}
+                          onClick={() => {
+                            setRoot(cat);
+                            selectFile(null);
+                          }}
+                          className="min-w-0 truncate disabled:cursor-default"
+                        >
+                          {cat}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (changeId !== undefined) {
+                              removeChange(changeId);
+                              setPendingRemovedCategories((prev) => {
+                                const next = new Map(prev);
+                                next.delete(cat);
+                                return next;
+                              });
+                              return;
+                            }
+                            const id = crypto.randomUUID();
+                            setPendingRemovedCategories((prev) => new Map(prev).set(cat, id));
+                            addChange({
+                              id,
+                              type: "removeCategory",
+                              fileTitle: title,
+                              category: cat,
+                              label: t("removeCategoryLabel", {
+                                name: detail.name,
+                                category: cat,
+                              }),
+                            });
+                          }}
+                          aria-label={removed ? t("undoRemoveCategory") : t("removeCategory")}
+                          title={removed ? t("undoRemoveCategory") : undefined}
+                          className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
+                            removed
+                              ? "text-red-400 hover:bg-red-200 hover:text-red-700"
+                              : "text-slate-400 hover:bg-slate-300 hover:text-slate-700"
+                          }`}
+                        >
+                          {removed ? <UndoIcon /> : <XIcon />}
+                        </button>
+                      </span>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => setAddingCategory(true)}
+                    className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                  >
+                    {t("addCategory")}
+                  </button>
+                </div>
+              </Field>
+
+              {addingCategory && (
+                <AddFileCategoryModal
+                  fileTitle={title}
+                  fileName={detail.name}
+                  existingCategories={detail.categories}
+                  defaultParent={current}
+                  onClose={() => setAddingCategory(false)}
+                />
+              )}
+
+              {nominatingDeletion && (
+                <NominateDeletionModal
+                  fileTitle={title}
+                  fileName={detail.name}
+                  onClose={() => setNominatingDeletion(false)}
+                />
+              )}
+
+              <Field label={t("depicts")}>
+                <DepictsList
+                  title={title}
+                  pageid={detail.pageid}
+                  depicts={detail.depicts}
+                />
+              </Field>
+
+              <Field label={t("location")}>
+                <LocationSection
+                  title={detail.title}
+                  coordinates={detail.coordinates}
+                  onSaved={(next) =>
+                    setDetail((prev) => (prev ? { ...prev, coordinates: next } : prev))
+                  }
                 />
               </Field>
             </div>
-
-            <Field label={t("author")}>
-              <Text value={detail.author} />
-            </Field>
-
-            <Field label={t("categories")}>
-              <div className="flex flex-wrap gap-1.5">
-                {detail.categories.map((cat) => {
-                  const changeId = pendingRemovedCategories.get(cat);
-                  const removed = changeId !== undefined;
-                  return (
-                    <span
-                      key={cat}
-                      title={cat}
-                      className={`group flex max-w-full items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-xs ${
-                        removed
-                          ? "bg-red-50 text-red-500"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        disabled={removed}
-                        onClick={() => {
-                          setRoot(cat);
-                          selectFile(null);
-                        }}
-                        className="min-w-0 truncate disabled:cursor-default"
-                      >
-                        {cat}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (changeId !== undefined) {
-                            removeChange(changeId);
-                            setPendingRemovedCategories((prev) => {
-                              const next = new Map(prev);
-                              next.delete(cat);
-                              return next;
-                            });
-                            return;
-                          }
-                          const id = crypto.randomUUID();
-                          setPendingRemovedCategories((prev) => new Map(prev).set(cat, id));
-                          addChange({
-                            id,
-                            type: "removeCategory",
-                            fileTitle: title,
-                            category: cat,
-                            label: t("removeCategoryLabel", {
-                              name: detail.name,
-                              category: cat,
-                            }),
-                          });
-                        }}
-                        aria-label={removed ? t("undoRemoveCategory") : t("removeCategory")}
-                        title={removed ? t("undoRemoveCategory") : undefined}
-                        className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
-                          removed
-                            ? "text-red-400 hover:bg-red-200 hover:text-red-700"
-                            : "text-slate-400 hover:bg-slate-300 hover:text-slate-700"
-                        }`}
-                      >
-                        {removed ? <UndoIcon /> : <XIcon />}
-                      </button>
-                    </span>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => setAddingCategory(true)}
-                  className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
-                >
-                  {t("addCategory")}
-                </button>
-              </div>
-            </Field>
-
-            {addingCategory && (
-              <AddFileCategoryModal
-                fileTitle={title}
-                fileName={detail.name}
-                existingCategories={detail.categories}
-                defaultParent={current}
-                onClose={() => setAddingCategory(false)}
-              />
-            )}
-
-            <Field label={t("location")}>
-              <LocationSection
-                title={detail.title}
-                coordinates={detail.coordinates}
-                onSaved={(next) =>
-                  setDetail((prev) => (prev ? { ...prev, coordinates: next } : prev))
-                }
-              />
-            </Field>
-
-            <Field label={t("depicts")}>
-              <DepictsList
-                title={title}
-                pageid={detail.pageid}
-                depicts={detail.depicts}
-              />
-            </Field>
           </div>
         )}
       </div>
@@ -367,6 +407,20 @@ function UndoIcon() {
         d="M20 20v-7a4 4 0 0 0-4-4H4"
         stroke="currentColor"
         strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 4h10M6.5 4V2.5h3V4M4.5 4l.5 9.5a1 1 0 0 0 1 .95h4a1 1 0 0 0 1-.95L11.5 4"
+        stroke="currentColor"
+        strokeWidth="1.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
