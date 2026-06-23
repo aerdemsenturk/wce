@@ -174,6 +174,7 @@
   },
   "upload": {
     "dropHint": "Drop files here to upload",
+    "tooManyFilesError": "You can upload at most {max} files at a time",
     "title": "{count, plural, one {Upload # file} other {Upload # files}}",
     "warnProduction": "Heads up: files upload directly to the real Wikimedia Commons. Only upload genuine, properly licensed content.",
     "author": "Author",

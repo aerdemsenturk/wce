@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useBrowser } from "../browser/BrowserProvider";
 import UploadModal from "./UploadModal";
+
+const MAX_UPLOAD_FILES = 25;
 
 /** True when the drag carries OS files (an external upload), not one of our
  * internal card/category drags (which use a custom MIME, see lib/dnd.ts). */
@@ -22,6 +25,7 @@ export default function UploadDropZone({
   children: React.ReactNode;
 }) {
   const t = useTranslations("upload");
+  const { showToast } = useBrowser();
   const [over, setOver] = useState(false);
   const [files, setFiles] = useState<File[] | null>(null);
   // dragenter/leave fire for every child crossing; count depth so the overlay
@@ -58,6 +62,13 @@ export default function UploadDropZone({
         const dropped = Array.from(e.dataTransfer.files).filter((f) =>
           f.type.startsWith("image/"),
         );
+        if (dropped.length > MAX_UPLOAD_FILES) {
+          showToast({
+            message: t("tooManyFilesError", { max: MAX_UPLOAD_FILES }),
+            tone: "error",
+          });
+          return;
+        }
         if (dropped.length > 0) setFiles(dropped);
       }}
     >
