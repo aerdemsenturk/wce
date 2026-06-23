@@ -26,7 +26,10 @@ export default function Header() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border-base bg-panel px-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-slate-700 sm:hidden">
+          {tApp("name")}
+        </span>
+        <span className="hidden text-sm font-semibold text-slate-700 sm:inline">
           {tApp("fullName")}
         </span>
       </div>

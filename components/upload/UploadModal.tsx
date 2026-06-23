@@ -238,6 +238,12 @@ export default function UploadModal({
                 </button>
               </span>
             ))}
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200"
+              title={t("uploadedWithWceHint")}
+            >
+              {t("uploadedWithWce")}
+            </span>
             <input
               value={categoryInput}
               onChange={(e) => setCategoryInput(e.target.value)}

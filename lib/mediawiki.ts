@@ -1013,6 +1013,9 @@ function sanitizeFilename(name: string): string {
 
 /** Standard Commons file-description page: {{Information}} + a license
  * template + category links, built from structured metadata. */
+/** Hidden maintenance category every WCE upload is tagged with, for tracking — not a content category. */
+const WCE_UPLOAD_TRACKING_CATEGORY = "Uploaded with WCE";
+
 function buildFilePageWikitext(meta: UploadMeta): string {
   const licenseTpl =
     LICENSE_TEMPLATES[meta.license] ?? LICENSE_TEMPLATES["cc-by-sa-4.0"];
@@ -1023,9 +1026,10 @@ function buildFilePageWikitext(meta: UploadMeta): string {
   const description = desc ? `{{${lang}|1=${desc}}}` : "";
   const source = meta.source.trim() || "{{own}}";
   const author = meta.author.trim();
-  const categories = meta.categories
-    .map((c) => stripCategoryPrefix(c).trim())
-    .filter(Boolean);
+  const categories = [
+    ...meta.categories.map((c) => stripCategoryPrefix(c).trim()).filter(Boolean),
+    WCE_UPLOAD_TRACKING_CATEGORY,
+  ];
 
   const lines = [
     "=={{int:filedesc}}==",
