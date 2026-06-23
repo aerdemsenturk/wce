@@ -14,6 +14,7 @@ import {
   stripHtml,
   withUpdatedDescription,
   withUpdatedLocation,
+  withRemovedLocation,
   withMovedCategory,
   withRemovedCategory,
   withAddedCategory,
@@ -1125,6 +1126,23 @@ export async function uploadFile(
   }
 
   return { title: `File:${data.upload?.filename ?? filename}` };
+}
+
+/** Remove a file's {{Location}}/{{Object location}} template outright. */
+export async function removeFileLocation(title: string): Promise<void> {
+  const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
+
+  const page = await fetchPageWikitext(fileTitle);
+  if (!page) {
+    throw new Error("File not found");
+  }
+
+  const updated = withRemovedLocation(page.wikitext);
+  if (updated == null) {
+    throw new Error("Page has no location to remove");
+  }
+
+  await postEdit(fileTitle, updated, "Remove location via WCE", page.timestamp);
 }
 
 /**

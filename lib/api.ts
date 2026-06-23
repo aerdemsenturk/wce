@@ -287,6 +287,22 @@ export async function uploadFileToCommons(
   return res.json();
 }
 
+/** Remove a file's {{Location}} coordinates outright (queued write path). */
+export async function removeFileLocation(title: string): Promise<void> {
+  const res = await fetch("/api/commons/file", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "removeLocation", title }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `removeLocation ${res.status}`);
+  }
+  for (const key of fileDetailCache.keys()) {
+    if (key.endsWith(`:${title}`)) fileDetailCache.delete(key);
+  }
+}
+
 /** Search Wikidata items by label, for the add-depict autocomplete. */
 export async function searchWikidataItems(
   query: string,

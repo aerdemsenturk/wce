@@ -100,6 +100,13 @@ export interface LocationChange {
   label: string;
 }
 
+export interface RemoveLocationChange {
+  id: string;
+  type: "removeLocation";
+  fileTitle: string; // "File:Foo.jpg"
+  label: string;
+}
+
 export type PendingChange =
   | DescriptionChange
   | MoveChange
@@ -109,7 +116,8 @@ export type PendingChange =
   | AddCategoryChange
   | AddDepictChange
   | RemoveDepictChange
-  | LocationChange;
+  | LocationChange
+  | RemoveLocationChange;
 
 /** Walks pending renames back to the name the category still has on
  * Commons, so views can fetch/compare using a name that actually exists
@@ -245,7 +253,8 @@ export function overlayDescriptions(
   return result;
 }
 
-/** A file's coordinates, adjusted for a not-yet-published location edit. */
+/** A file's coordinates, adjusted for a not-yet-published location edit or
+ * removal. */
 export function overlayLocation(
   fileTitle: string,
   base: Coordinates | null,
@@ -255,6 +264,9 @@ export function overlayLocation(
   for (const change of changes) {
     if (change.type === "location" && change.fileTitle === fileTitle) {
       result = { lat: change.lat, lon: change.lon };
+    }
+    if (change.type === "removeLocation" && change.fileTitle === fileTitle) {
+      result = null;
     }
   }
   return result;

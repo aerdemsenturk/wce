@@ -387,6 +387,21 @@ export function withUpdatedLocation(
   return `${template}\n${wikitext}`;
 }
 
+/** Remove an existing {{Location}}/{{Object location}} template outright.
+ * Null if the page has no location template to remove. */
+export function withRemovedLocation(wikitext: string): string | null {
+  const range = findLocationTemplateRange(wikitext);
+  if (!range) return null;
+
+  let end = range.end;
+  if (wikitext[end] === "\n") end += 1;
+
+  return (wikitext.slice(0, range.start) + wikitext.slice(end)).replace(
+    /\n{3,}/g,
+    "\n\n",
+  );
+}
+
 /** Find the absolute [start, end) range of a `[[Category:Name|sortkey]]`
  * link (any namespace alias casing), or null if that category isn't linked
  * on the page. */

@@ -28,6 +28,7 @@ import {
   addDepict,
   removeDepict,
   updateFileLocation,
+  removeFileLocation,
   createCategoryFromSelection,
   renameCategory,
 } from "@/lib/api";
@@ -365,6 +366,8 @@ export default function BrowserProvider({
           await removeDepict(change.fileTitle, change.statementId);
         } else if (change.type === "location") {
           await updateFileLocation(change.fileTitle, change.lat, change.lon);
+        } else if (change.type === "removeLocation") {
+          await removeFileLocation(change.fileTitle);
         } else if (change.type === "rename") {
           const result = await renameCategory(change.oldName, change.newName, {
             wikidataQid: change.wikidataQid,

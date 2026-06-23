@@ -3,6 +3,7 @@ import {
   addDepict,
   editFileDescription,
   editFileLocation,
+  removeFileLocation,
   getFileDetail,
   removeDepict,
 } from "@/lib/mediawiki";
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/commons/file  { op: "addDepict", pageid, qid }
 // PATCH /api/commons/file  { op: "removeDepict", statementId }
 // PATCH /api/commons/file  { op: "location", title, lat, lon }
+// PATCH /api/commons/file  { op: "removeLocation", title }
 export async function PATCH(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     op?: string;
@@ -92,6 +94,15 @@ export async function PATCH(request: NextRequest) {
         );
       }
       await editFileLocation(locationTitle, body.lat, body.lon);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body?.op === "removeLocation") {
+      const locationTitle = body.title?.trim();
+      if (!locationTitle) {
+        return NextResponse.json({ error: "Missing 'title'" }, { status: 400 });
+      }
+      await removeFileLocation(locationTitle);
       return NextResponse.json({ ok: true });
     }
 
