@@ -7,6 +7,7 @@ import WikidataBadge from "@/components/category/WikidataBadge";
 import FileGrid from "@/components/files/FileGrid";
 import SelectionToolbar from "@/components/files/SelectionToolbar";
 import DetailPanel from "@/components/detail/DetailPanel";
+import UploadDropZone from "@/components/upload/UploadDropZone";
 import Toast from "@/components/ui/Toast";
 
 /**
@@ -35,18 +36,20 @@ export default function BrowserApp({
             <Sidebar />
           </ResizablePanel>
 
-          <main className="min-w-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-20">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base bg-panel px-6 py-3">
-                <Breadcrumb />
-                <WikidataBadge />
+          <UploadDropZone>
+            <main className="min-w-0 flex-1 overflow-y-auto">
+              <div className="sticky top-0 z-20">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base bg-panel px-6 py-3">
+                  <Breadcrumb />
+                  <WikidataBadge />
+                </div>
+                <SelectionToolbar />
               </div>
-              <SelectionToolbar />
-            </div>
-            <div className="p-6">
-              <FileGrid />
-            </div>
-          </main>
+              <div className="p-6">
+                <FileGrid />
+              </div>
+            </main>
+          </UploadDropZone>
 
           <DetailPanel />
         </div>

@@ -25,6 +25,7 @@ export default function CategoryTree() {
   // badges the user can click to swap which parent sits at the top.
   useEffect(() => {
     if (!root) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading state before fetching
       setParentData(null);
       return;
     }

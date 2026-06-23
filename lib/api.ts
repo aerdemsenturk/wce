@@ -251,6 +251,42 @@ export async function updateFileLocation(
   }
 }
 
+export interface UploadFileMeta {
+  filename: string;
+  description: string;
+  descriptionLang: string;
+  date: string;
+  author: string;
+  source: string;
+  license: string;
+  categories: string[];
+}
+
+/** Upload one new file to Commons. Posts the binary plus metadata as
+ * multipart form-data to our upload proxy; returns the created page title. */
+export async function uploadFileToCommons(
+  file: File,
+  meta: UploadFileMeta,
+): Promise<{ title: string }> {
+  const form = new FormData();
+  form.set("file", file, meta.filename);
+  form.set("filename", meta.filename);
+  form.set("description", meta.description);
+  form.set("descriptionLang", meta.descriptionLang);
+  form.set("date", meta.date);
+  form.set("author", meta.author);
+  form.set("source", meta.source);
+  form.set("license", meta.license);
+  for (const c of meta.categories) form.append("categories", c);
+
+  const res = await fetch("/api/commons/upload", { method: "POST", body: form });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `upload ${res.status}`);
+  }
+  return res.json();
+}
+
 /** Search Wikidata items by label, for the add-depict autocomplete. */
 export async function searchWikidataItems(
   query: string,

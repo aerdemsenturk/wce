@@ -975,6 +975,158 @@ export async function editFileLocation(
   await postEdit(fileTitle, updated, "Add location via WCE", page.timestamp);
 }
 
+// Allowlisted license tokens → the Commons template they expand to. Keeping
+// this server-side and closed means the client can't inject arbitrary wikitext
+// through the license field.
+const LICENSE_TEMPLATES: Record<string, string> = {
+  "cc-by-sa-4.0": "{{Cc-by-sa-4.0}}",
+  "cc-by-4.0": "{{Cc-by-4.0}}",
+  "cc0": "{{Cc-zero}}",
+  "pd-self": "{{PD-self}}",
+};
+
+export interface UploadMeta {
+  /** Target file name, with extension, without the "File:" prefix. */
+  filename: string;
+  description: string;
+  /** Language code the description is written in (wraps it in {{<lang>|…}}). */
+  descriptionLang: string;
+  date: string;
+  author: string;
+  source: string;
+  /** One of LICENSE_TEMPLATES' keys. */
+  license: string;
+  /** Category names (with or without the "Category:" prefix). */
+  categories: string[];
+}
+
+/** MediaWiki rejects these characters in titles; strip them so a user-typed
+ * file name can't produce an invalid (or wikitext-injecting) target. */
+function sanitizeFilename(name: string): string {
+  return name
+    .trim()
+    .replace(/[#<>[\]|{}/:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Standard Commons file-description page: {{Information}} + a license
+ * template + category links, built from structured metadata. */
+function buildFilePageWikitext(meta: UploadMeta): string {
+  const licenseTpl =
+    LICENSE_TEMPLATES[meta.license] ?? LICENSE_TEMPLATES["cc-by-sa-4.0"];
+  const lang = /^[a-z]{2,3}(-[a-z]+)?$/i.test(meta.descriptionLang)
+    ? meta.descriptionLang.toLowerCase()
+    : "en";
+  const desc = meta.description.trim();
+  const description = desc ? `{{${lang}|1=${desc}}}` : "";
+  const source = meta.source.trim() || "{{own}}";
+  const author = meta.author.trim();
+  const categories = meta.categories
+    .map((c) => stripCategoryPrefix(c).trim())
+    .filter(Boolean);
+
+  const lines = [
+    "=={{int:filedesc}}==",
+    "{{Information",
+    `|description=${description}`,
+    `|date=${meta.date.trim()}`,
+    `|source=${source}`,
+    `|author=${author}`,
+    "}}",
+    "",
+    "=={{int:license-header}}==",
+    licenseTpl,
+  ];
+  if (categories.length > 0) {
+    lines.push("");
+    for (const c of categories) lines.push(`[[Category:${c}]]`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Upload a single new file to Commons via action=upload (multipart). Builds
+ * the description page from `meta`, refuses uploads that collide with an
+ * existing file or duplicate one already on Commons (rather than silently
+ * overwriting), and returns the created page title on success.
+ */
+export async function uploadFile(
+  file: Blob,
+  meta: UploadMeta,
+): Promise<{ title: string }> {
+  const token = process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error(
+      "WIKIMEDIA_OAUTH_ACCESS_TOKEN is not configured — uploads are disabled.",
+    );
+  }
+
+  const filename = sanitizeFilename(meta.filename);
+  if (!filename || !/\.[A-Za-z0-9]+$/.test(filename)) {
+    throw new Error(
+      "Invalid file name — include an extension, e.g. \"My photo.jpg\".",
+    );
+  }
+
+  const csrf = await getCsrfToken();
+  const text = buildFilePageWikitext({ ...meta, filename });
+
+  const form = new FormData();
+  form.set("action", "upload");
+  form.set("format", "json");
+  form.set("formatversion", "2");
+  form.set("filename", filename);
+  form.set("comment", "Upload via WCE");
+  form.set("text", text);
+  form.set("token", csrf);
+  form.set("file", file, filename);
+
+  // No explicit Content-Type: fetch derives the multipart boundary from FormData.
+  const res = await fetch(COMMONS_API, {
+    method: "POST",
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Api-User-Agent": USER_AGENT,
+      Authorization: `Bearer ${token}`,
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
+  }
+
+  const data = (await res.json()) as {
+    upload?: {
+      result?: string;
+      filename?: string;
+      warnings?: Record<string, unknown>;
+    };
+    error?: { info?: string; code?: string };
+  };
+
+  if (data.error) {
+    throw new Error(data.error.info ?? data.error.code ?? "Upload failed");
+  }
+
+  const result = data.upload?.result;
+  if (result === "Warning") {
+    const warnings = Object.keys(data.upload?.warnings ?? {});
+    if (warnings.includes("exists")) {
+      throw new Error(`A file named "${filename}" already exists on Commons.`);
+    }
+    if (warnings.includes("duplicate")) {
+      throw new Error("This file is a duplicate of one already on Commons.");
+    }
+    throw new Error(`Upload blocked: ${warnings.join(", ") || "warning"}`);
+  }
+  if (result !== "Success") {
+    throw new Error("Upload failed");
+  }
+
+  return { title: `File:${data.upload?.filename ?? filename}` };
+}
+
 /**
  * Move a page's category membership: replace `[[Category:from]]` with
  * `[[Category:to]]` on `pageTitle`'s own wikitext. Works for both file

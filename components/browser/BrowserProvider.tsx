@@ -175,6 +175,7 @@ export default function BrowserProvider({
   // and feeds the sidebar's "recently visited" list.
   useEffect(() => {
     if (!current) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- record visit when the active category changes
     setRecentCategories(pushRecentCategory(current));
   }, [current]);
 
