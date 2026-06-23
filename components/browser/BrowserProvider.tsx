@@ -61,6 +61,10 @@ interface BrowserState {
   clearRoot: () => void;
   /** Select a category by its full path from root. */
   selectPath: (path: string[]) => void;
+  /** Promote one of the entered category's parents to the top of the tree (or
+   * pass null to drop it), keeping the entered category active beneath it.
+   * Drives the sidebar's "parent as level-1 root" behaviour. */
+  setTreeParent: (parent: string | null) => void;
   /** Update the active category's name in place after a rename (keeps the
    * rest of the path, and updates the saved root if it was the root). */
   renameCurrent: (newName: string) => void;
@@ -253,6 +257,22 @@ export default function BrowserProvider({
     setSelected(new Set());
   }, []);
 
+  // Re-root the tree under `parent` while keeping the entered category (and any
+  // descent below it) active — `root` stays the entered category, only the
+  // path's prefix above it changes, so the gallery (keyed on `current`) doesn't
+  // reload.
+  const setTreeParent = useCallback(
+    (parent: string | null) => {
+      if (!root) return;
+      setPath((prev) => {
+        const anchorIndex = prev.indexOf(root);
+        const fromAnchor = anchorIndex >= 0 ? prev.slice(anchorIndex) : [root];
+        return parent ? [parent, ...fromAnchor] : fromAnchor;
+      });
+    },
+    [root],
+  );
+
   const renameCurrent = useCallback((newName: string) => {
     setPath((prev) => {
       if (prev.length === 0) return prev;
@@ -411,6 +431,7 @@ export default function BrowserProvider({
       setRoot,
       clearRoot,
       selectPath,
+      setTreeParent,
       renameCurrent,
       selectedFile,
       selectFile,
@@ -446,6 +467,7 @@ export default function BrowserProvider({
       setRoot,
       clearRoot,
       selectPath,
+      setTreeParent,
       renameCurrent,
       selectedFile,
       selectFile,

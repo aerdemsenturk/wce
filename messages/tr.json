@@ -24,6 +24,7 @@
     "noWikidata": "Wikidata bağlantısı yok",
     "addSubcategory": "Alt kategori ekle",
     "goToParent": "Üst kategoriye git: {name}",
+    "useAsParent": "Üst kategori olarak ağaca al: {name}",
     "recent": "Son ziyaret edilenler",
     "favorites": "Favori kategorilerim",
     "favorite": "Favorilere ekle",

@@ -10,30 +10,56 @@ import CategoryNode from "./CategoryNode";
 export default function CategoryTree() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { root, setRoot, clearRoot, version } = useBrowser();
+  const { root, path, setRoot, clearRoot, setTreeParent, version } = useBrowser();
   const [input, setInput] = useState("");
-  const [parents, setParents] = useState<Subcategory[] | null>(null);
+  // Parents are tagged with the category they belong to: when the root changes
+  // (e.g. clicking another favorite) the previous fetch's parents must not be
+  // reused for the new root, or we'd promote the wrong parent onto the tree.
+  const [parentData, setParentData] = useState<{
+    root: string;
+    parents: Subcategory[];
+  } | null>(null);
 
-  // When a root is opened, surface its parent categories (the ancestors it's
-  // filed under on Commons) above the tree so the user can navigate upward.
+  // When a category is entered, fetch the parents it's filed under on Commons.
+  // One of them is promoted to the top of the tree (below); the rest stay as
+  // badges the user can click to swap which parent sits at the top.
   useEffect(() => {
     if (!root) {
-      setParents(null);
+      setParentData(null);
       return;
     }
     let active = true;
-    setParents(null);
+    setParentData(null);
     getCategoryParentsCached(root, locale)
       .then((data) => {
-        if (active) setParents(data);
+        if (active) setParentData({ root, parents: data });
       })
       .catch(() => {
-        if (active) setParents([]);
+        if (active) setParentData({ root, parents: [] });
       });
     return () => {
       active = false;
     };
   }, [root, locale, version]);
+
+  // Only trust parents that were fetched for the current root.
+  const parents =
+    parentData && parentData.root === root ? parentData.parents : null;
+
+  // Auto-promote the first parent as the tree's level-1 node while the entered
+  // category is still the top of the tree (path === [root]). Once promoted the
+  // path grows, so this no-ops and won't fight downward navigation.
+  useEffect(() => {
+    if (parents && parents.length > 0 && path.length === 1 && path[0] === root) {
+      setTreeParent(parents[0].name);
+    }
+  }, [parents, path, root, setTreeParent]);
+
+  // The parent currently sitting at the top of the tree (if any), and the
+  // remaining "alternative" parents still shown as badges.
+  const promoted = path.length > 1 ? path[0] : null;
+  const altParents = (parents ?? []).filter((p) => p.name !== promoted);
+  const treeTop = path[0] ?? root;
 
   if (!root) {
     return (
@@ -76,14 +102,14 @@ export default function CategoryTree() {
         {t("changeRoot")}
       </button>
 
-      {parents && parents.length > 0 && (
+      {altParents.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 border-b border-border-base pb-2">
-          {parents.map((parent) => (
+          {altParents.map((parent) => (
             <button
               key={parent.title}
               type="button"
-              onClick={() => setRoot(parent.name)}
-              title={t("goToParent", { name: parent.name })}
+              onClick={() => setTreeParent(parent.name)}
+              title={t("useAsParent", { name: parent.name })}
               className="inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             >
               <UpIcon />
@@ -95,9 +121,9 @@ export default function CategoryTree() {
 
       <ul>
         <CategoryNode
-          key={root}
-          name={root}
-          path={[root]}
+          key={treeTop}
+          name={treeTop}
+          path={[treeTop]}
           subcats={null}
           files={null}
           level={0}

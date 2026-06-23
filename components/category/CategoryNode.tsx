@@ -33,18 +33,22 @@ export default function CategoryNode({
   const { path: activePath, selectPath, version, pendingChanges } = useBrowser();
   const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(name);
 
-  const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [children, setChildren] = useState<Subcategory[] | null>(null);
-
   const isActive = activePath.join("/") === path.join("/");
   const isAncestorOfActive =
     activePath.length > path.length &&
     path.every((segment, i) => activePath[i] === segment);
   const expandable = subcats === null || subcats > 0;
   const parent = path.length > 1 ? path[path.length - 2] : null;
+
+  // Start expanded when this node already sits on the path to the active
+  // category at mount time, so entering a category (e.g. via a favorite, which
+  // remounts the tree top under its parent) reveals the active category's place
+  // in the tree without a manual click.
+  const [expanded, setExpanded] = useState(isAncestorOfActive);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [children, setChildren] = useState<Subcategory[] | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
   // Follow navigation from the main content area: auto-expand this node when
