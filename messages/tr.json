@@ -134,7 +134,8 @@
     "qidNote": "Yayınlandığında kategori sayfası ile bu Wikidata maddesi arasında gerçek bir bağlantı (sitelink) kurulur.",
     "save": "Güncelle",
     "cancel": "İptal et",
-    "renameLabel": "{oldName} → {newName} olarak yeniden adlandırılacak"
+    "renameLabel": "{oldName} → {newName} olarak yeniden adlandırılacak",
+    "wikidataOnlyLabel": "{name} için Wikidata maddesi güncellenecek"
   },
   "newCategory": {
     "modalTitle": "Yeni kategori ekle",

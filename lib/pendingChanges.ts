@@ -145,13 +145,20 @@ export function overlayDeletionNomination(
  * server-side even after the user has renamed it locally. */
 export function resolveCategoryName(category: string, changes: PendingChange[]): string {
   let result = category;
+  const seen = new Set<string>([result]);
   let changed = true;
   while (changed) {
     changed = false;
     for (const change of changes) {
-      if (change.type === "rename" && change.newName === result) {
+      // A rename change can carry just a Wikidata update with the name left
+      // unchanged (oldName === newName) — skip those, and bail out on any
+      // cycle, so this can't spin forever walking back and forth.
+      if (change.type === "rename" && change.oldName !== change.newName && change.newName === result) {
         result = change.oldName;
+        if (seen.has(result)) return result;
+        seen.add(result);
         changed = true;
+        break;
       }
     }
   }

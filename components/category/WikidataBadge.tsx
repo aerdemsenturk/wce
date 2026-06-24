@@ -15,7 +15,7 @@ const MAX_LABEL_CHARS = 40;
 export default function WikidataBadge() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { current, pendingChanges } = useBrowser();
+  const { current, pendingChanges, version } = useBrowser();
   const [wikidata, setWikidata] = useState<CategoryWikidata | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -48,8 +48,8 @@ export default function WikidataBadge() {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure
-  }, [current, locale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump forces a refetch after publish
+  }, [current, locale, version]);
 
   if (!current || !loaded) return null;
 

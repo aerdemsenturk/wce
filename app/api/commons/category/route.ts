@@ -132,7 +132,11 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      const result = await renameCategory(oldName, newName);
+      // A same-name "rename" can arrive when the edit modal is used purely to
+      // set/change the Wikidata QID — skip the move (Commons rejects a
+      // self-move, which would otherwise also block the Wikidata update below).
+      const result =
+        oldName === newName ? { moved: [], failed: [] } : await renameCategory(oldName, newName);
 
       let wikidataError: string | undefined;
       if (body.wikidataQid !== undefined) {

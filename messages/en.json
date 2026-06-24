@@ -134,7 +134,8 @@
     "qidNote": "When published, this creates a real Wikidata sitelink between the category page and this item.",
     "save": "Update",
     "cancel": "Cancel",
-    "renameLabel": "{oldName} → {newName} will be renamed"
+    "renameLabel": "{oldName} → {newName} will be renamed",
+    "wikidataOnlyLabel": "Wikidata item will be updated for {name}"
   },
   "newCategory": {
     "modalTitle": "Add new category",

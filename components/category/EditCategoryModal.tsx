@@ -45,7 +45,10 @@ export default function EditCategoryModal({
       newName,
       parentCategory,
       wikidataQid: wikidata?.id ?? "",
-      label: t("renameLabel", { oldName: category, newName }),
+      label:
+        newName === category
+          ? t("wikidataOnlyLabel", { name: category })
+          : t("renameLabel", { oldName: category, newName }),
     });
     if (newName !== category) renameCurrent(newName);
     onClose();
