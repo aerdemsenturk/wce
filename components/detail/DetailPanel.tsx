@@ -17,7 +17,7 @@ import LicenseBadge from "@/components/ui/LicenseBadge";
 import DescriptionField from "./DescriptionField";
 import LocationSection from "./LocationSection";
 import DepictsList from "./DepictsList";
-import AddFileCategoryModal from "./AddFileCategoryModal";
+import FileCategoriesEditor from "./FileCategoriesEditor";
 import NominateDeletionModal from "./NominateDeletionModal";
 
 export default function DetailPanel() {
@@ -95,18 +95,12 @@ function DetailContent({ title }: { title: string }) {
   const t = useTranslations("detail");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { selectFile, setRoot, current, pendingChanges, addChange, removeChange } = useBrowser();
+  const { selectFile, current, pendingChanges, removeChange } = useBrowser();
 
   const [detail, setDetail] = useState<FileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [addingCategory, setAddingCategory] = useState(false);
   const [nominatingDeletion, setNominatingDeletion] = useState(false);
-  // Maps category name -> the id of the queued removeCategory change, so a
-  // second click can find and cancel that exact change.
-  const [pendingRemovedCategories, setPendingRemovedCategories] = useState<
-    Map<string, string>
-  >(new Map());
 
   useEffect(() => {
     let active = true;
@@ -237,106 +231,16 @@ function DetailContent({ title }: { title: string }) {
               </Field>
 
               <Field label={t("categories")}>
-                <div className="flex flex-wrap gap-1.5">
-                  {detail.categories.map((cat) => {
-                    const changeId = pendingRemovedCategories.get(cat);
-                    const removed = changeId !== undefined;
-                    const addedChangeId = pendingChanges.find(
-                      (c) => c.type === "addCategory" && c.fileTitle === title && c.category === cat,
-                    )?.id;
-                    const pending = addedChangeId !== undefined;
-                    return (
-                      <span
-                        key={cat}
-                        title={pending ? t("pendingChange") : cat}
-                        className={`group flex max-w-full items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-xs ${
-                          removed
-                            ? "bg-red-50 text-red-500"
-                            : pending
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          disabled={removed}
-                          onClick={() => {
-                            setRoot(cat);
-                            selectFile(null);
-                          }}
-                          className="min-w-0 truncate disabled:cursor-default"
-                        >
-                          {cat}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (addedChangeId !== undefined) {
-                              removeChange(addedChangeId);
-                              return;
-                            }
-                            if (changeId !== undefined) {
-                              removeChange(changeId);
-                              setPendingRemovedCategories((prev) => {
-                                const next = new Map(prev);
-                                next.delete(cat);
-                                return next;
-                              });
-                              return;
-                            }
-                            const id = crypto.randomUUID();
-                            setPendingRemovedCategories((prev) => new Map(prev).set(cat, id));
-                            addChange({
-                              id,
-                              type: "removeCategory",
-                              fileTitle: title,
-                              category: cat,
-                              label: t("removeCategoryLabel", {
-                                name: detail.name,
-                                category: cat,
-                              }),
-                            });
-                          }}
-                          aria-label={removed || pending ? t("undoChange") : t("removeCategory")}
-                          title={removed || pending ? t("undoChange") : undefined}
-                          className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ${
-                            removed
-                              ? "text-red-400 hover:bg-red-200 hover:text-red-700"
-                              : pending
-                                ? "text-amber-400 hover:bg-amber-200 hover:text-amber-700"
-                                : "text-slate-400 hover:bg-slate-300 hover:text-slate-700"
-                          }`}
-                        >
-                          {removed || pending ? <UndoIcon /> : <XIcon />}
-                        </button>
-                      </span>
-                    );
-                  })}
-
-                  <button
-                    type="button"
-                    onClick={() => setAddingCategory(true)}
-                    className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 hover:border-slate-400 hover:text-slate-600"
-                  >
-                    {t("addCategory")}
-                  </button>
-                </div>
-              </Field>
-
-              {addingCategory && (
-                <AddFileCategoryModal
-                  fileTitle={title}
-                  fileName={detail.name}
-                  existingCategories={detail.categories}
+                <FileCategoriesEditor
+                  title={title}
+                  name={detail.name}
+                  categories={detail.categories}
                   defaultParent={current}
-                  onAdded={(category) =>
-                    setDetail((prev) =>
-                      prev ? { ...prev, categories: [...prev.categories, category] } : prev,
-                    )
+                  onSaved={(next) =>
+                    setDetail((prev) => (prev ? { ...prev, categories: next } : prev))
                   }
-                  onClose={() => setAddingCategory(false)}
                 />
-              )}
+              </Field>
 
               {nominatingDeletion && (
                 <NominateDeletionModal
@@ -398,40 +302,6 @@ function Text({ value }: { value: string | null }) {
 
 function Empty() {
   return <span className="text-sm text-slate-300">—</span>;
-}
-
-function XIcon() {
-  return (
-    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden>
-      <path
-        d="M1 1l6 6M7 1l-6 6"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function UndoIcon() {
-  return (
-    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <polyline
-        points="9 14 4 9 9 4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M20 20v-7a4 4 0 0 0-4-4H4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function TrashIcon() {

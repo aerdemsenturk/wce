@@ -154,6 +154,7 @@
   },
   "merge": {
     "selectedCount": "{count, plural, one {# item selected} other {# items selected}}",
+    "bulkEditButton": "Bulk edit",
     "mergeButton": "Merge into new category",
     "clearSelection": "Clear selection",
     "title": "Create category",
@@ -168,6 +169,11 @@
     "create": "Create",
     "queued": "{name} will be created (not published yet)",
     "createLabel": "Created {name} ({count} files)"
+  },
+  "bulkEdit": {
+    "title": "{count, plural, one {Editing # item} other {Editing # items}}",
+    "close": "Close",
+    "hint": "Every change you make here is queued immediately; use the Publish button above to send it to Commons."
   },
   "publish": {
     "title": "Publish results",

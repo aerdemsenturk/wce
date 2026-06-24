@@ -48,6 +48,7 @@ export default function FileCard({
       }}
       onDragEnd={() => setDragging(false)}
       onClick={() => selectFile(file)}
+      data-file-title={file.title}
       className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
         dragging ? "opacity-50" : ""
       } ${

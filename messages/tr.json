@@ -154,6 +154,7 @@
   },
   "merge": {
     "selectedCount": "{count, plural, one {# öge seçildi} other {# öge seçildi}}",
+    "bulkEditButton": "Toplu düzenle",
     "mergeButton": "Yeni kategoride birleştir",
     "clearSelection": "Seçimi temizle",
     "title": "Kategori oluştur",
@@ -168,6 +169,11 @@
     "create": "Oluştur",
     "queued": "{name} oluşturulacak (yayınlanmadı)",
     "createLabel": "{name} oluşturuldu ({count} dosya)"
+  },
+  "bulkEdit": {
+    "title": "{count, plural, one {# öge düzenleniyor} other {# öge düzenleniyor}}",
+    "close": "Kapat",
+    "hint": "Yaptığınız her değişiklik anında yayın kuyruğuna eklenir; yayınlamak için üstteki Yayınla düğmesini kullanın."
   },
   "publish": {
     "title": "Yayınlama sonucu",

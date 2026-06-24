@@ -98,6 +98,8 @@ interface BrowserState {
   /** File titles checked for the "merge into new category" action. */
   selected: Set<string>;
   toggleSelected: (title: string) => void;
+  /** Replace the full set of checked titles at once (box/marquee selection). */
+  setSelectedTitles: (titles: Set<string>) => void;
   clearSelected: () => void;
   /** Bumped after a successful drag-drop move / category creation so views
    * relying on cached category data know to refetch. */
@@ -108,6 +110,9 @@ interface BrowserState {
   /** Whether the "merge selection into new category" modal is open. */
   mergeModalOpen: boolean;
   setMergeModalOpen: (open: boolean) => void;
+  /** Whether the "bulk edit selection" modal is open. */
+  bulkEditModalOpen: boolean;
+  setBulkEditModalOpen: (open: boolean) => void;
   /** Changes queued locally but not yet written to Commons. */
   pendingChanges: PendingChange[];
   addChange: (change: PendingChange) => void;
@@ -180,6 +185,7 @@ export default function BrowserProvider({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
@@ -356,6 +362,8 @@ export default function BrowserProvider({
       return next;
     });
   }, []);
+
+  const setSelectedTitles = useCallback((titles: Set<string>) => setSelected(titles), []);
 
   const clearSelected = useCallback(() => setSelected(new Set()), []);
 
@@ -535,6 +543,7 @@ export default function BrowserProvider({
       setCounts,
       selected,
       toggleSelected,
+      setSelectedTitles,
       clearSelected,
       version,
       bumpVersion,
@@ -542,6 +551,8 @@ export default function BrowserProvider({
       showToast,
       mergeModalOpen,
       setMergeModalOpen,
+      bulkEditModalOpen,
+      setBulkEditModalOpen,
       pendingChanges,
       addChange,
       removeChange,
@@ -583,12 +594,14 @@ export default function BrowserProvider({
       setCounts,
       selected,
       toggleSelected,
+      setSelectedTitles,
       clearSelected,
       version,
       bumpVersion,
       toast,
       showToast,
       mergeModalOpen,
+      bulkEditModalOpen,
       pendingChanges,
       addChange,
       removeChange,

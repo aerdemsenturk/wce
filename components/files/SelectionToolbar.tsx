@@ -5,7 +5,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 
 export default function SelectionToolbar() {
   const t = useTranslations("merge");
-  const { selected, clearSelected, setMergeModalOpen } = useBrowser();
+  const { selected, clearSelected, setMergeModalOpen, setBulkEditModalOpen } = useBrowser();
 
   if (selected.size === 0) return null;
 
@@ -13,6 +13,13 @@ export default function SelectionToolbar() {
     <div className="flex items-center justify-between gap-3 bg-slate-900 px-4 py-2 text-sm text-white">
       <span>{t("selectedCount", { count: selected.size })}</span>
       <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setBulkEditModalOpen(true)}
+          className="rounded-md bg-white px-3 py-1 text-xs font-medium text-slate-900 hover:bg-slate-100"
+        >
+          {t("bulkEditButton")}
+        </button>
         <button
           type="button"
           onClick={() => setMergeModalOpen(true)}

@@ -11,40 +11,42 @@ export default function CategoryTree() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
   const { root, path, setTreeParent, version } = useBrowser();
-  // Parents are tagged with the category they belong to: when the root changes
-  // (e.g. clicking another favorite) the previous fetch's parents must not be
-  // reused for the new root, or we'd promote the wrong parent onto the tree.
+  const current = path[path.length - 1] ?? root;
+  // Parents are tagged with the category they belong to: when the active
+  // category changes (navigating the tree) the previous fetch's parents must
+  // not be reused for the new one, or we'd show/promote the wrong parent.
   const [parentData, setParentData] = useState<{
-    root: string;
+    category: string;
     parents: Subcategory[];
   } | null>(null);
 
-  // When a category is entered, fetch the parents it's filed under on Commons.
-  // One of them is promoted to the top of the tree (below); the rest stay as
-  // badges the user can click to swap which parent sits at the top.
+  // Whenever the active category changes, fetch the parents it's filed under
+  // on Commons. While still at the root (no drill-down yet) one of them is
+  // promoted to the top of the tree (below); the rest stay as badges the
+  // user can click to swap which parent sits at the top.
   useEffect(() => {
-    if (!root) {
+    if (!current) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading state before fetching
       setParentData(null);
       return;
     }
     let active = true;
     setParentData(null);
-    getCategoryParentsCached(root, locale)
+    getCategoryParentsCached(current, locale)
       .then((data) => {
-        if (active) setParentData({ root, parents: data });
+        if (active) setParentData({ category: current, parents: data });
       })
       .catch(() => {
-        if (active) setParentData({ root, parents: [] });
+        if (active) setParentData({ category: current, parents: [] });
       });
     return () => {
       active = false;
     };
-  }, [root, locale, version]);
+  }, [current, locale, version]);
 
-  // Only trust parents that were fetched for the current root.
+  // Only trust parents that were fetched for the current active category.
   const parents =
-    parentData && parentData.root === root ? parentData.parents : null;
+    parentData && parentData.category === current ? parentData.parents : null;
 
   // Auto-promote the first parent as the tree's level-1 node while the entered
   // category is still the top of the tree (path === [root]). Once promoted the
@@ -55,10 +57,11 @@ export default function CategoryTree() {
     }
   }, [parents, path, root, setTreeParent]);
 
-  // The parent currently sitting at the top of the tree (if any), and the
-  // remaining "alternative" parents still shown as badges.
-  const promoted = path.length > 1 ? path[0] : null;
-  const altParents = (parents ?? []).filter((p) => p.name !== promoted);
+  // Exclude the parent already visible immediately above the active category
+  // in the tree (the one promoted to the top, or the one just navigated
+  // through) from the badge list — it'd be a redundant "go to parent" badge.
+  const visibleParent = path.length > 1 ? path[path.length - 2] : null;
+  const altParents = (parents ?? []).filter((p) => p.name !== visibleParent);
   const treeTop = path[0] ?? root;
 
   if (!root) {
