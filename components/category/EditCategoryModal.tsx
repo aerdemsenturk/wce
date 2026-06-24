@@ -19,7 +19,7 @@ export default function EditCategoryModal({
   onClose: () => void;
 }) {
   const t = useTranslations("rename");
-  const { addChange, renameCurrent, confirmedWikidata } = useBrowser();
+  const { addChange, renameCurrent, confirmedWikidata, pendingChanges } = useBrowser();
 
   const [name, setName] = useState(category);
   const [wikidata, setWikidata] = useState<WikidataPickerValue | null>(null);
@@ -35,7 +35,23 @@ export default function EditCategoryModal({
     let active = true;
     setWikidataLoaded(false);
     wikidataTouched.current = false;
-    // A sitelink published this session may not be mirrored into Commons'
+    // 1. A not-yet-published Wikidata edit to this category (the badge already
+    // shows it via the pending overlay) — reopening the modal must reflect it
+    // too, otherwise the box looks empty and resubmitting would clear the link.
+    const pending = [...pendingChanges]
+      .reverse()
+      .find(
+        (c) =>
+          c.type === "rename" &&
+          c.wikidataQid !== undefined &&
+          (c.newName === category || c.oldName === category),
+      );
+    if (pending && pending.type === "rename") {
+      setWikidata(pending.wikidataQid ? { id: pending.wikidataQid, label: null } : null);
+      setWikidataLoaded(true);
+      return;
+    }
+    // 2. A sitelink published this session may not be mirrored into Commons'
     // pageprops yet (job-queue lag); prefer the value we know we just set so
     // reopening the modal doesn't read back "no link" — which, resubmitted,
     // would silently clear the real link.
@@ -45,6 +61,7 @@ export default function EditCategoryModal({
       setWikidataLoaded(true);
       return;
     }
+    // 3. Otherwise read the current link from Commons.
     fetchCategoryWikidataNote(category)
       .then((qid) => {
         if (active) {
@@ -56,7 +73,7 @@ export default function EditCategoryModal({
     return () => {
       active = false;
     };
-  }, [category, confirmedWikidata]);
+  }, [category, confirmedWikidata, pendingChanges]);
 
   function submit() {
     const newName = name.trim();

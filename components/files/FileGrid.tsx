@@ -40,6 +40,7 @@ export default function FileGrid() {
     setMergeModalOpen,
     version,
     pendingChanges,
+    confirmedCreations,
     setVisibleFiles,
   } = useBrowser();
 
@@ -65,7 +66,9 @@ export default function FileGrid() {
           locale,
         );
         if (active) {
-          setSubcategories(overlaySubcategories(current, data.subcategories, pendingChanges));
+          setSubcategories(
+            overlaySubcategories(current, data.subcategories, pendingChanges, confirmedCreations),
+          );
         }
       } catch {
         if (active) setSubcategories([]);

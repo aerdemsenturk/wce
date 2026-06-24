@@ -1453,6 +1453,24 @@ interface SitelinkResponse {
   error?: { code?: string; info?: string };
 }
 
+/** Best-effort purge of a Commons page with `forcelinkupdate`, so the Wikibase
+ * client re-reads its just-changed Wikidata connection now instead of waiting
+ * out the repo→client change-dispatch lag. Without this, the `wikibase_item`
+ * pageprop (and so the sidebar badge) can stay stale for many minutes after a
+ * sitelink is set/cleared. Non-fatal — the link is already correct on Wikidata
+ * regardless. */
+async function purgeCommonsPage(title: string): Promise<void> {
+  try {
+    await apiPost(COMMONS_API, {
+      action: "purge",
+      titles: title,
+      forcelinkupdate: 1,
+    });
+  } catch {
+    // Ignore: the connection still propagates on its own eventually.
+  }
+}
+
 /** Create or repoint the `commonswiki` sitelink on a Wikidata item to point
  * at this category page — the real bidirectional link, as opposed to the
  * informational `{{Wikidata Infobox}}` note. Fails if that item already has
@@ -1478,6 +1496,9 @@ export async function setCategorySitelink(
       data.error.info ?? data.error.code ?? "Could not set Wikidata sitelink",
     );
   }
+
+  // Nudge Commons to register the new connection immediately.
+  await purgeCommonsPage(title);
 }
 
 /** Remove the `commonswiki` sitelink from whichever Wikidata item currently
@@ -1501,6 +1522,9 @@ export async function clearCategorySitelink(category: string): Promise<void> {
       data.error.info ?? data.error.code ?? "Could not remove Wikidata sitelink",
     );
   }
+
+  // Nudge Commons to drop the now-removed connection immediately.
+  await purgeCommonsPage(title);
 }
 
 interface MoveResponse {

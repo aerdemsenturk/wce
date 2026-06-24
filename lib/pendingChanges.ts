@@ -165,12 +165,22 @@ export function resolveCategoryName(category: string, changes: PendingChange[]):
   return result;
 }
 
+/** A category just created through WCE and published, kept until Commons'
+ * `categorymembers` index reflects it (LinksUpdate job lag) so it doesn't
+ * vanish from its parent's subcategory listing right after publishing. */
+export interface ConfirmedCreation {
+  name: string;
+  parentCategory: string;
+}
+
 /** Subcategories listed under `category`, adjusted for not-yet-published
- * moves and category creations. */
+ * moves and category creations, plus just-published creations Commons hasn't
+ * indexed yet (`confirmedCreations`). */
 export function overlaySubcategories(
   category: string,
   base: Subcategory[],
   changes: PendingChange[],
+  confirmedCreations: ConfirmedCreation[] = [],
 ): Subcategory[] {
   const canon = (c: string) => resolveCategoryName(c, changes);
   let result = base;
@@ -200,6 +210,26 @@ export function overlaySubcategories(
           ? { ...s, name: change.newName, title: withCategoryPrefix(change.newName) }
           : s,
       );
+    }
+  }
+  // Re-insert just-published creations Commons hasn't indexed yet — but only
+  // when the (fresh) base doesn't already list them, so once the index catches
+  // up the real entry (with real counts) wins and the synthetic is dropped.
+  for (const creation of confirmedCreations) {
+    if (
+      canon(creation.parentCategory) === canon(category) &&
+      !result.some((s) => canon(s.name) === canon(creation.name))
+    ) {
+      result = [
+        ...result,
+        {
+          title: withCategoryPrefix(creation.name),
+          name: creation.name,
+          files: 0,
+          subcats: 0,
+          wikidata: null,
+        },
+      ];
     }
   }
   return result;

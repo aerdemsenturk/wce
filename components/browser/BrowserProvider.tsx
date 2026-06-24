@@ -13,7 +13,7 @@ import {
 const ROOT_STORAGE_KEY = "wce:root-category";
 
 import type { CategoryFileInfo } from "@/lib/types";
-import type { PendingChange } from "@/lib/pendingChanges";
+import type { PendingChange, ConfirmedCreation } from "@/lib/pendingChanges";
 import { categoryToAppPath, categoryFromPath, withCategoryPrefix } from "@/lib/category";
 import { getRecentCategories, pushRecentCategory } from "@/lib/recentCategories";
 import {
@@ -118,6 +118,9 @@ interface BrowserState {
   /** Forget a confirmed-Wikidata override once a fresh read shows Commons has
    * caught up. */
   clearConfirmedWikidata: (category: string) => void;
+  /** Categories created+published this session, kept in their parent's
+   * subcategory listing until Commons' categorymembers index catches up. */
+  confirmedCreations: ConfirmedCreation[];
 }
 
 const Ctx = createContext<BrowserState | null>(null);
@@ -164,6 +167,7 @@ export default function BrowserProvider({
   const [confirmedWikidata, setConfirmedWikidata] = useState<Map<string, string | null>>(
     new Map(),
   );
+  const [confirmedCreations, setConfirmedCreations] = useState<ConfirmedCreation[]>([]);
   const [recentCategories, setRecentCategories] = useState<string[]>([]);
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
 
@@ -443,6 +447,12 @@ export default function BrowserProvider({
             continue;
           }
           if (change.wikidataQid) recordWikidata(change.name, change.wikidataQid);
+          // Keep it nested under its parent until Commons indexes the new
+          // subcategory (categorymembers lags behind the page creation).
+          setConfirmedCreations((prev) => [
+            ...prev.filter((c) => c.name !== change.name),
+            { name: change.name, parentCategory: change.parentCategory },
+          ]);
         }
         results.push({ changeId: change.id, label: change.label, status: "success" });
       } catch (err) {
@@ -514,6 +524,7 @@ export default function BrowserProvider({
       clearPublishResults,
       confirmedWikidata,
       clearConfirmedWikidata,
+      confirmedCreations,
     }),
     [
       root,
@@ -553,6 +564,7 @@ export default function BrowserProvider({
       clearPublishResults,
       confirmedWikidata,
       clearConfirmedWikidata,
+      confirmedCreations,
     ],
   );
 

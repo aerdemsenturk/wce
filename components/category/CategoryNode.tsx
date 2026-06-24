@@ -30,7 +30,8 @@ export default function CategoryNode({
 }: CategoryNodeProps) {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { path: activePath, selectPath, version, pendingChanges } = useBrowser();
+  const { path: activePath, selectPath, version, pendingChanges, confirmedCreations } =
+    useBrowser();
   const { isOver, onDragOver, onDragLeave, onDrop } = useCategoryDropTarget(name);
 
   const isActive = activePath.join("/") === path.join("/");
@@ -74,7 +75,10 @@ export default function CategoryNode({
       return;
     }
     getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale).then((data) => {
-      if (active) setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
+      if (active)
+        setChildren(
+          overlaySubcategories(name, data.subcategories, pendingChanges, confirmedCreations),
+        );
     });
     return () => {
       active = false;
@@ -102,7 +106,10 @@ export default function CategoryNode({
           return;
         }
         const data = await getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale);
-        if (active) setChildren(overlaySubcategories(name, data.subcategories, pendingChanges));
+        if (active)
+          setChildren(
+            overlaySubcategories(name, data.subcategories, pendingChanges, confirmedCreations),
+          );
       } catch {
         if (active) {
           setError(true);
