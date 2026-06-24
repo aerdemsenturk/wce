@@ -27,7 +27,9 @@
     "favorites": "Favori kategorilerim",
     "favorite": "Favorilere ekle",
     "unfavorite": "Favorilerden çıkar",
-    "openOnCommons": "Commons'ta aç"
+    "openOnCommons": "Commons'ta aç",
+    "expand": "Aç",
+    "collapse": "Kapat"
   },
   "filters": {
     "all": "Tümü",

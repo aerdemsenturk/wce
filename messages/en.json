@@ -27,7 +27,9 @@
     "favorites": "My favorites",
     "favorite": "Add to favorites",
     "unfavorite": "Remove from favorites",
-    "openOnCommons": "Open on Commons"
+    "openOnCommons": "Open on Commons",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "filters": {
     "all": "All",

@@ -7,6 +7,7 @@ import { getCategoryChildrenCached } from "@/lib/api";
 import { resolveCategoryName, syntheticChildrenFor } from "@/lib/pendingChanges";
 import { commonsCategoryUrl } from "@/lib/category";
 import UploadModal from "@/components/upload/UploadModal";
+import Tooltip from "@/components/ui/Tooltip";
 import EditCategoryModal from "./EditCategoryModal";
 import AddCategoryModal from "./AddCategoryModal";
 
@@ -88,16 +89,17 @@ export default function CategoryHeader() {
           >
             <StarIcon filled={isFavorite} />
           </IconButton>
-          <a
-            href={commonsCategoryUrl(current)}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={tSidebar("openOnCommons")}
-            title={tSidebar("openOnCommons")}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          >
-            <ExternalIcon />
-          </a>
+          <Tooltip label={tSidebar("openOnCommons")}>
+            <a
+              href={commonsCategoryUrl(current)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={tSidebar("openOnCommons")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            >
+              <ExternalIcon />
+            </a>
+          </Tooltip>
         </div>
       </div>
 
@@ -134,21 +136,22 @@ function IconButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      className={
-        "inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 " +
-        (active
-          ? "text-amber-400 hover:text-amber-500"
-          : "text-slate-400 hover:text-slate-700")
-      }
-    >
-      {children}
-    </button>
+    <Tooltip label={label}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        aria-pressed={pressed}
+        className={
+          "inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 " +
+          (active
+            ? "text-amber-400 hover:text-amber-500"
+            : "text-slate-400 hover:text-slate-700")
+        }
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 

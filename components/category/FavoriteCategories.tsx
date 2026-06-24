@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import Tooltip from "@/components/ui/Tooltip";
 
 /** The user's pinned categories, shown in the sidebar above the recently
  * visited list. Click to open; the star removes from favorites. */
@@ -31,15 +32,16 @@ export default function FavoriteCategories() {
               <StarIcon />
               <span className="truncate">{name}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => toggleFavorite(name)}
-              aria-label={t("unfavorite")}
-              title={t("unfavorite")}
-              className="shrink-0 px-1.5 text-slate-300 opacity-0 hover:text-slate-600 group-hover:opacity-100"
-            >
-              <RemoveIcon />
-            </button>
+            <Tooltip label={t("unfavorite")}>
+              <button
+                type="button"
+                onClick={() => toggleFavorite(name)}
+                aria-label={t("unfavorite")}
+                className="shrink-0 px-1.5 text-slate-300 opacity-0 hover:text-slate-600 group-hover:opacity-100"
+              >
+                <RemoveIcon />
+              </button>
+            </Tooltip>
           </li>
         ))}
       </ul>

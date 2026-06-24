@@ -9,6 +9,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
 import { setDragPayload } from "@/lib/dnd";
 import { withCategoryPrefix } from "@/lib/category";
+import Tooltip from "@/components/ui/Tooltip";
 
 interface CategoryNodeProps {
   name: string;
@@ -175,16 +176,18 @@ export default function CategoryNode({
         } ${isOver ? "ring-2 ring-inset ring-slate-900" : ""}`}
         style={{ paddingLeft: `${level * 12 + 4}px` }}
       >
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={expanded ? "collapse" : "expand"}
-          className={`grid h-5 w-5 shrink-0 place-items-center rounded ${
-            expandable ? "" : "invisible"
-          } ${isActive ? "hover:bg-white/20" : "hover:bg-slate-200"}`}
-        >
-          <Chevron open={expanded} />
-        </button>
+        <Tooltip label={expanded ? t("collapse") : t("expand")}>
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={expanded ? t("collapse") : t("expand")}
+            className={`grid h-5 w-5 shrink-0 place-items-center rounded ${
+              expandable ? "" : "invisible"
+            } ${isActive ? "hover:bg-white/20" : "hover:bg-slate-200"}`}
+          >
+            <Chevron open={expanded} />
+          </button>
+        </Tooltip>
 
         <button
           type="button"
