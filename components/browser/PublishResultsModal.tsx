@@ -46,6 +46,9 @@ export default function PublishResultsModal({
                 {r.status === "skipped" && (
                   <span className="ml-1.5 text-amber-600">— {t("skipped")}</span>
                 )}
+                {r.status === "skipped" && r.message && (
+                  <span className="mt-0.5 block text-xs text-slate-500">{r.message}</span>
+                )}
               </span>
             </li>
           ))}

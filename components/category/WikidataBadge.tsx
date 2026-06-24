@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { getCategoryChildrenCached } from "@/lib/api";
 import { syntheticChildrenFor, overlayWikidata, resolveCategoryName } from "@/lib/pendingChanges";
 import type { CategoryWikidata } from "@/lib/types";
-import { wikidataNewItemUrl } from "@/lib/category";
+import { wikidataNewItemUrl, withCategoryPrefix } from "@/lib/category";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 
 /** Hard cap on the Wikidata label shown in the badge; the full text stays in
@@ -15,7 +15,8 @@ const MAX_LABEL_CHARS = 40;
 export default function WikidataBadge() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { current, pendingChanges, version } = useBrowser();
+  const { current, pendingChanges, version, confirmedWikidata, clearConfirmedWikidata } =
+    useBrowser();
   const [wikidata, setWikidata] = useState<CategoryWikidata | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -36,10 +37,25 @@ export default function WikidataBadge() {
           resolveCategoryName(current, pendingChanges),
           locale,
         );
-        if (active) {
-          setWikidata(overlayWikidata(current, data.wikidata, pendingChanges));
-          setLoaded(true);
+        if (!active) return;
+        const overlaid = overlayWikidata(current, data.wikidata, pendingChanges);
+        const serverId = data.wikidata?.id ?? null;
+        // A pending rename already overrode the value — leave it. Otherwise, if
+        // we recently published a sitelink that Commons' pageprops hasn't
+        // mirrored yet, keep showing it until a fresh read agrees.
+        const pendingOverrode = (overlaid?.id ?? null) !== serverId;
+        const confirmed = confirmedWikidata.get(withCategoryPrefix(current));
+        if (!pendingOverrode && confirmed !== undefined) {
+          if (serverId === confirmed) {
+            clearConfirmedWikidata(current); // Commons caught up
+          } else {
+            setWikidata(confirmed ? { id: confirmed, label: null } : null);
+            setLoaded(true);
+            return;
+          }
         }
+        setWikidata(overlaid);
+        setLoaded(true);
       } catch {
         if (active) setLoaded(true);
       }
@@ -48,7 +64,7 @@ export default function WikidataBadge() {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump forces a refetch after publish
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges/confirmedWikidata read via closure; version bump (on publish) forces a refetch
   }, [current, locale, version]);
 
   if (!current || !loaded) return null;

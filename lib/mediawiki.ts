@@ -78,19 +78,142 @@ async function apiGet(
   return res.json();
 }
 
+// --- OAuth 2.0 access-token management -------------------------------------
+//
+// Writes authenticate with a Bearer token. Two ways to supply it:
+//  - WIKIMEDIA_OAUTH_CLIENT_ID + WIKIMEDIA_OAUTH_CLIENT_SECRET — an owner-only
+//    OAuth 2.0 consumer. We mint short-lived access tokens on demand via the
+//    client_credentials grant and auto-refresh them before they expire
+//    (Wikimedia tokens last ~4h), so the server never needs a hand-pasted
+//    token. This is the preferred setup.
+//  - WIKIMEDIA_OAUTH_ACCESS_TOKEN — a single pre-issued token, used verbatim.
+//    No refresh: it stops working once it expires. Kept as a fallback.
+//
+// client_id/secret take precedence when both are present.
+
+// Wikimedia's central OAuth 2.0 token endpoint (works for the whole cluster).
+const OAUTH_TOKEN_ENDPOINT =
+  "https://meta.wikimedia.org/w/rest.php/oauth2/access_token";
+// Refresh this far ahead of the real expiry so an in-flight request never
+// sends a token that lapses mid-call.
+const TOKEN_REFRESH_MARGIN_MS = 60_000;
+
+interface CachedToken {
+  token: string;
+  /** Epoch ms after which the token should be treated as expired. */
+  expiresAt: number;
+}
+
+let cachedToken: CachedToken | null = null;
+// De-dupes concurrent mints so a burst of writes triggers a single request.
+let mintInFlight: Promise<CachedToken> | null = null;
+
+function oauthClientCreds(): { id: string; secret: string } | null {
+  const id = process.env.WIKIMEDIA_OAUTH_CLIENT_ID;
+  const secret = process.env.WIKIMEDIA_OAUTH_CLIENT_SECRET;
+  return id && secret ? { id, secret } : null;
+}
+
+async function mintAccessToken(creds: {
+  id: string;
+  secret: string;
+}): Promise<CachedToken> {
+  const res = await fetch(OAUTH_TOKEN_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Api-User-Agent": USER_AGENT,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: creds.id,
+      client_secret: creds.secret,
+    }),
+  });
+  const data = (await res.json().catch(() => null)) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+    message?: string;
+  } | null;
+  if (!res.ok || !data?.access_token) {
+    const detail =
+      data?.error_description ??
+      data?.message ??
+      data?.error ??
+      `${res.status} ${res.statusText}`;
+    throw new Error(`Could not obtain an OAuth access token: ${detail}`);
+  }
+  // expires_in is seconds (~14400). Fall back to 4h if the server omits it.
+  const ttlMs = (data.expires_in ?? 14400) * 1000;
+  return { token: data.access_token, expiresAt: Date.now() + ttlMs };
+}
+
 /**
- * Authenticated POST for write calls (action=edit, tokens, ...). Uses the
- * owner-only OAuth 2.0 access token configured in the environment — there is
- * no interactive login/callback flow because that consumer is pre-authorized
- * for a single Wikimedia account.
+ * Resolve a Bearer token for write calls, minting/refreshing it from the
+ * client_credentials grant when an owner-only consumer is configured.
+ * `forceRefresh` discards any cached token first — used to retry once after
+ * an auth failure.
+ */
+async function getAccessToken(forceRefresh = false): Promise<string> {
+  const creds = oauthClientCreds();
+  if (creds) {
+    if (forceRefresh) {
+      cachedToken = null;
+      mintInFlight = null;
+    }
+    if (
+      cachedToken &&
+      cachedToken.expiresAt - Date.now() > TOKEN_REFRESH_MARGIN_MS
+    ) {
+      return cachedToken.token;
+    }
+    if (!mintInFlight) {
+      mintInFlight = mintAccessToken(creds);
+      mintInFlight
+        .then((c) => {
+          cachedToken = c;
+        })
+        .catch(() => {})
+        .finally(() => {
+          mintInFlight = null;
+        });
+    }
+    return (await mintInFlight).token;
+  }
+
+  const staticToken = process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN;
+  if (staticToken) return staticToken;
+
+  throw new Error(
+    "Wikimedia OAuth is not configured — set WIKIMEDIA_OAUTH_CLIENT_ID and " +
+      "WIKIMEDIA_OAUTH_CLIENT_SECRET (or WIKIMEDIA_OAUTH_ACCESS_TOKEN) to enable writes.",
+  );
+}
+
+/** Whether a failed write can be retried with a freshly-minted token (only
+ * the client_credentials path can refresh; a static token can't). */
+function canRefreshToken(): boolean {
+  return oauthClientCreds() !== null;
+}
+
+/**
+ * Authenticated POST for write calls (action=edit, tokens, ...). Carries the
+ * OAuth 2.0 Bearer token and, when minting from client credentials, retries
+ * once with a fresh token if the first attempt is rejected as unauthorized.
  */
 async function apiPost(base: string, params: Params): Promise<unknown> {
-  const token = process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error(
-      "WIKIMEDIA_OAUTH_ACCESS_TOKEN is not configured — writes are disabled.",
-    );
-  }
+  return postWithBearer(base, params, false);
+}
+
+async function postWithBearer(
+  base: string,
+  params: Params,
+  isRetry: boolean,
+): Promise<unknown> {
+  const token = await getAccessToken(isRetry);
 
   const body = new URLSearchParams();
   body.set("format", "json");
@@ -109,6 +232,10 @@ async function apiPost(base: string, params: Params): Promise<unknown> {
     },
     body,
   });
+  // An expired/revoked token comes back as 401 — mint a fresh one and retry.
+  if (res.status === 401 && !isRetry && canRefreshToken()) {
+    return postWithBearer(base, params, true);
+  }
   if (!res.ok) {
     throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
   }
@@ -785,19 +912,27 @@ export async function getFileDetail(
 ): Promise<FileDetail | null> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
-  const data = (await apiGet(COMMONS_API, {
-    action: "query",
-    titles: fileTitle,
-    prop: "revisions|imageinfo|categories|coordinates",
-    rvprop: "content",
-    rvslots: "main",
-    iiprop: "url|size|extmetadata|mediatype",
-    iiurlwidth: 800,
-    iiextmetadatalanguage: lang,
-    clshow: "!hidden",
-    cllimit: 50,
-    colimit: 10,
-  })) as { query?: { pages?: FileDetailPage[] } };
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      titles: fileTitle,
+      prop: "revisions|imageinfo|categories|coordinates",
+      rvprop: "content",
+      rvslots: "main",
+      iiprop: "url|size|extmetadata|mediatype",
+      iiurlwidth: 800,
+      iiextmetadatalanguage: lang,
+      clshow: "!hidden",
+      cllimit: 50,
+      colimit: 10,
+    },
+    // Bypass the 5-min server cache: a just-published description/location/
+    // depict/category edit must be visible the next time the panel opens,
+    // not after the revalidate window. The client-side fileDetailCache still
+    // dedupes within a session and is invalidated on writes.
+    { noStore: true },
+  )) as { query?: { pages?: FileDetailPage[] } };
 
   const page = data.query?.pages?.[0];
   if (!page || page.pageid == null) return null;
@@ -1065,13 +1200,6 @@ export async function uploadFile(
   file: Blob,
   meta: UploadMeta,
 ): Promise<{ title: string }> {
-  const token = process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error(
-      "WIKIMEDIA_OAUTH_ACCESS_TOKEN is not configured — uploads are disabled.",
-    );
-  }
-
   const filename = sanitizeFilename(meta.filename);
   if (!filename || !/\.[A-Za-z0-9]+$/.test(filename)) {
     throw new Error(
@@ -1080,6 +1208,7 @@ export async function uploadFile(
   }
 
   const csrf = await getCsrfToken();
+  const token = await getAccessToken();
   const text = buildFilePageWikitext({ ...meta, filename });
 
   const form = new FormData();

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { fetchCategoryWikidataNote } from "@/lib/api";
+import { withCategoryPrefix } from "@/lib/category";
 import Modal, { ModalActions } from "@/components/ui/Modal";
 import FormField, { formFieldInputClassName } from "@/components/ui/FormField";
 import WikidataPicker, { type WikidataPickerValue } from "@/components/ui/WikidataPicker";
@@ -18,7 +19,7 @@ export default function EditCategoryModal({
   onClose: () => void;
 }) {
   const t = useTranslations("rename");
-  const { addChange, renameCurrent } = useBrowser();
+  const { addChange, renameCurrent, confirmedWikidata } = useBrowser();
 
   const [name, setName] = useState(category);
   const [wikidata, setWikidata] = useState<WikidataPickerValue | null>(null);
@@ -34,6 +35,16 @@ export default function EditCategoryModal({
     let active = true;
     setWikidataLoaded(false);
     wikidataTouched.current = false;
+    // A sitelink published this session may not be mirrored into Commons'
+    // pageprops yet (job-queue lag); prefer the value we know we just set so
+    // reopening the modal doesn't read back "no link" — which, resubmitted,
+    // would silently clear the real link.
+    const confirmed = confirmedWikidata.get(withCategoryPrefix(category));
+    if (confirmed !== undefined) {
+      setWikidata(confirmed ? { id: confirmed, label: null } : null);
+      setWikidataLoaded(true);
+      return;
+    }
     fetchCategoryWikidataNote(category)
       .then((qid) => {
         if (active) {
@@ -45,7 +56,7 @@ export default function EditCategoryModal({
     return () => {
       active = false;
     };
-  }, [category]);
+  }, [category, confirmedWikidata]);
 
   function submit() {
     const newName = name.trim();

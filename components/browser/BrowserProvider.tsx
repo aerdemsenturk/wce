@@ -14,7 +14,7 @@ const ROOT_STORAGE_KEY = "wce:root-category";
 
 import type { CategoryFileInfo } from "@/lib/types";
 import type { PendingChange } from "@/lib/pendingChanges";
-import { categoryToAppPath, categoryFromPath } from "@/lib/category";
+import { categoryToAppPath, categoryFromPath, withCategoryPrefix } from "@/lib/category";
 import { getRecentCategories, pushRecentCategory } from "@/lib/recentCategories";
 import {
   getFavoriteCategories,
@@ -32,6 +32,7 @@ import {
   nominateFileDeletion,
   createCategoryFromSelection,
   renameCategory,
+  invalidateCategory,
 } from "@/lib/api";
 
 export interface Toast {
@@ -108,6 +109,15 @@ interface BrowserState {
   publishAll: () => Promise<void>;
   publishResults: PublishResult[] | null;
   clearPublishResults: () => void;
+  /** Wikidata sitelinks just published but not yet mirrored into Commons'
+   * `pageprops` (Wikibase Client job-queue lag), keyed by "Category:Name" →
+   * QID (or null when the link was cleared). Lets the badge / edit modal keep
+   * showing the freshly-set link instead of flashing back to "no link" while
+   * Commons catches up. */
+  confirmedWikidata: Map<string, string | null>;
+  /** Forget a confirmed-Wikidata override once a fresh read shows Commons has
+   * caught up. */
+  clearConfirmedWikidata: (category: string) => void;
 }
 
 const Ctx = createContext<BrowserState | null>(null);
@@ -151,6 +161,9 @@ export default function BrowserProvider({
   const [redoStack, setRedoStack] = useState<PendingChange[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [publishResults, setPublishResults] = useState<PublishResult[] | null>(null);
+  const [confirmedWikidata, setConfirmedWikidata] = useState<Map<string, string | null>>(
+    new Map(),
+  );
   const [recentCategories, setRecentCategories] = useState<string[]>([]);
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
 
@@ -357,9 +370,23 @@ export default function BrowserProvider({
     bumpVersion();
   }, [bumpVersion]);
 
+  const clearConfirmedWikidata = useCallback((category: string) => {
+    const key = withCategoryPrefix(category);
+    setConfirmedWikidata((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
   const publishAll = useCallback(async () => {
     setPublishing(true);
     const results: PublishResult[] = [];
+    // Wikidata links we set this run, to keep showing until Commons' pageprops
+    // mirror catches up with the sitelink (job-queue lag).
+    const recordWikidata = (name: string, qid: string | null) =>
+      setConfirmedWikidata((prev) => new Map(prev).set(withCategoryPrefix(name), qid));
     for (const change of pendingChanges) {
       try {
         if (change.type === "description") {
@@ -394,6 +421,11 @@ export default function BrowserProvider({
             });
             continue;
           }
+          // Sitelink is set on Wikidata now; remember it (or its removal) so
+          // the badge doesn't read back the still-lagging Commons pageprops.
+          if (change.wikidataQid !== undefined) {
+            recordWikidata(change.newName, change.wikidataQid || null);
+          }
         } else {
           const result = await createCategoryFromSelection(
             change.name,
@@ -410,6 +442,7 @@ export default function BrowserProvider({
             });
             continue;
           }
+          if (change.wikidataQid) recordWikidata(change.name, change.wikidataQid);
         }
         results.push({ changeId: change.id, label: change.label, status: "success" });
       } catch (err) {
@@ -425,8 +458,13 @@ export default function BrowserProvider({
     setRedoStack([]);
     setPublishResults(results);
     setPublishing(false);
+    // Drop the viewed category's cached grid/children so the version bump below
+    // refetches it fresh — file-field edits (description, location, ...) change
+    // a card's status but aren't reflected by the pending-change overlays, and
+    // their API helpers only invalidate the file-detail cache, not the grid.
+    if (current) invalidateCategory(current);
     setVersion((v) => v + 1);
-  }, [pendingChanges]);
+  }, [pendingChanges, current]);
 
   const clearPublishResults = useCallback(() => setPublishResults(null), []);
 
@@ -474,6 +512,8 @@ export default function BrowserProvider({
       publishAll,
       publishResults,
       clearPublishResults,
+      confirmedWikidata,
+      clearConfirmedWikidata,
     }),
     [
       root,
@@ -511,6 +551,8 @@ export default function BrowserProvider({
       publishAll,
       publishResults,
       clearPublishResults,
+      confirmedWikidata,
+      clearConfirmedWikidata,
     ],
   );
 
