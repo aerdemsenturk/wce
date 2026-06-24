@@ -74,12 +74,19 @@ export default function CategoryNode({
       Promise.resolve().then(() => active && setChildren(synthetic));
       return;
     }
-    getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale).then((data) => {
-      if (active)
-        setChildren(
-          overlaySubcategories(name, data.subcategories, pendingChanges, confirmedCreations),
-        );
-    });
+    getCategoryChildrenCached(resolveCategoryName(name, pendingChanges), locale)
+      .then((data) => {
+        if (active)
+          setChildren(
+            overlaySubcategories(name, data.subcategories, pendingChanges, confirmedCreations),
+          );
+      })
+      .catch(() => {
+        if (active) {
+          setError(true);
+          setExpanded(false);
+        }
+      });
     return () => {
       active = false;
     };
