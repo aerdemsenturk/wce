@@ -1,4 +1,5 @@
 import type {
+  ActivityItem,
   CategoryChildren,
   CategoryFile,
   CategoryFileInfo,
@@ -8,6 +9,8 @@ import type {
   FileDetail,
   FileStatus,
   Subcategory,
+  UploadItem,
+  UserProfile,
 } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
 import {
@@ -259,6 +262,177 @@ async function getCsrfToken(base: string = COMMONS_API): Promise<string> {
   if (!token) throw new Error("Could not obtain a CSRF token");
   return token;
 }
+
+/**
+ * Authenticated GET — same shape as `apiGet`, but attaches the OAuth Bearer
+ * token. Used for calls that are read-only against the API but need the
+ * token to resolve to "the connected account" (userinfo, usercontribs, the
+ * account's own uploads). Always bypasses the fetch cache: these are
+ * dropdown-triggered, low-traffic, and should reflect the latest Commons
+ * state rather than `apiGet`'s 5-minute revalidate window.
+ */
+async function apiGetAuthed(base: string, params: Params): Promise<unknown> {
+  const token = await getAccessToken();
+  const url = new URL(base);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("formatversion", "2");
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Api-User-Agent": USER_AGENT,
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+// --- Connected account: profile, activity history, uploads -----------------
+//
+// Single owner-only account (see AGENTS.md) — there's exactly one user to
+// resolve, so the username is cached for the life of the server process once
+// learned, instead of being re-fetched on every activity/uploads call.
+
+let cachedUsername: string | null = null;
+
+/** The OAuth-connected Commons account's profile (editcount, registration). */
+async function getCurrentUser(): Promise<UserProfile> {
+  const data = (await apiGetAuthed(COMMONS_API, {
+    action: "query",
+    meta: "userinfo",
+    uiprop: "editcount|registrationdate",
+  })) as {
+    query?: {
+      userinfo?: {
+        name?: string;
+        editcount?: number;
+        registrationdate?: string | null;
+      };
+    };
+  };
+  const info = data.query?.userinfo;
+  if (!info?.name) throw new Error("Could not resolve the connected account");
+  cachedUsername = info.name;
+  return {
+    username: info.name,
+    editCount: info.editcount ?? 0,
+    registrationDate: info.registrationdate ?? null,
+    profileUrl: `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(info.name)}`,
+  };
+}
+
+async function resolveUsername(): Promise<string> {
+  if (cachedUsername) return cachedUsername;
+  return (await getCurrentUser()).username;
+}
+
+interface UserContrib {
+  revid: number;
+  title: string;
+  ns: number;
+  timestamp: string;
+  comment?: string | null;
+  new?: boolean;
+  newlen?: number;
+  oldlen?: number;
+}
+
+/** The connected account's real Commons contribution history. */
+async function getUserActivity(
+  continueToken?: string,
+  limit = 30,
+): Promise<{ items: ActivityItem[]; continueToken: string | null }> {
+  const username = await resolveUsername();
+  const data = (await apiGetAuthed(COMMONS_API, {
+    action: "query",
+    list: "usercontribs",
+    ucuser: username,
+    uclimit: limit,
+    ucprop: "title|timestamp|comment|sizediff|flags|ids",
+    uccontinue: continueToken,
+  })) as {
+    query?: { usercontribs?: UserContrib[] };
+    continue?: { uccontinue?: string };
+  };
+
+  const items: ActivityItem[] = (data.query?.usercontribs ?? []).map((c) => ({
+    id: String(c.revid),
+    title: c.title,
+    ns: c.ns,
+    timestamp: c.timestamp,
+    comment: c.comment?.trim() || null,
+    isNew: Boolean(c.new),
+    sizeDiff:
+      typeof c.newlen === "number" && typeof c.oldlen === "number"
+        ? c.newlen - c.oldlen
+        : null,
+    pageUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(c.title).replace(/%2F/g, "/")}`,
+  }));
+
+  return { items, continueToken: data.continue?.uccontinue ?? null };
+}
+
+interface AllImagesImageInfo {
+  timestamp: string;
+  thumburl?: string;
+  url?: string;
+  size?: number;
+}
+
+interface AllImagesPage {
+  title: string;
+  imageinfo?: AllImagesImageInfo[];
+}
+
+/** Every file the connected account has uploaded to Commons (global, not
+ * scoped to any one category). Uses `generator=allimages` + `prop=imageinfo`
+ * rather than `list=allimages` directly — that list module has no width
+ * param of its own (`aiurlwidth` is silently ignored), so it can only ever
+ * return the full-resolution original; only the generator+imageinfo
+ * combination accepts `iiurlwidth` and gives back a real thumbnail. */
+async function getUserUploads(
+  continueToken?: string,
+  limit = 30,
+): Promise<{ items: UploadItem[]; continueToken: string | null }> {
+  const username = await resolveUsername();
+  const data = (await apiGetAuthed(COMMONS_API, {
+    action: "query",
+    generator: "allimages",
+    gaiuser: username,
+    gaisort: "timestamp",
+    gaidir: "older",
+    gailimit: limit,
+    gaicontinue: continueToken,
+    prop: "imageinfo",
+    iiprop: "timestamp|url|size",
+    iiurlwidth: 160,
+  })) as {
+    query?: { pages?: AllImagesPage[] };
+    continue?: { gaicontinue?: string };
+  };
+
+  const items: UploadItem[] = (data.query?.pages ?? [])
+    .map((page) => ({ title: page.title, info: page.imageinfo?.[0] }))
+    .filter((p): p is { title: string; info: AllImagesImageInfo } => Boolean(p.info))
+    .map(({ title, info }) => ({
+      title,
+      name: title.replace(/^File:/i, ""),
+      timestamp: info.timestamp,
+      thumbUrl: info.thumburl ?? info.url ?? null,
+      descriptionUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(title).replace(/%2F/g, "/")}`,
+      size: info.size ?? null,
+    }));
+
+  return { items, continueToken: data.continue?.gaicontinue ?? null };
+}
+
+export { getCurrentUser, getUserActivity, getUserUploads };
 
 interface CategoryMember {
   pageid: number;

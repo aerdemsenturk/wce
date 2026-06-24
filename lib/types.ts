@@ -94,3 +94,33 @@ export interface CategoryFileInfo {
   /** How many of the 5 status fields are missing (used for sort/filter). */
   missingCount: number;
 }
+
+/** The OAuth-connected Commons account (single owner account, see AGENTS.md). */
+export interface UserProfile {
+  username: string;
+  editCount: number;
+  registrationDate: string | null; // ISO
+  profileUrl: string; // Commons user page
+}
+
+/** One row of the account's real Commons contribution history (list=usercontribs). */
+export interface ActivityItem {
+  id: string; // revid
+  title: string; // full page title incl. namespace prefix
+  ns: number;
+  timestamp: string; // ISO
+  comment: string | null;
+  isNew: boolean; // page creation vs. edit
+  sizeDiff: number | null;
+  pageUrl: string;
+}
+
+/** One file the account has uploaded to Commons (list=allimages&aiuser=...). */
+export interface UploadItem {
+  title: string; // "File:Foo.jpg"
+  name: string; // "Foo.jpg"
+  timestamp: string; // ISO
+  thumbUrl: string | null;
+  descriptionUrl: string;
+  size: number | null; // bytes
+}

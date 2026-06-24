@@ -1,10 +1,13 @@
 import type {
+  ActivityItem,
   CategoryChildren,
   CategoryFile,
   CategoryFileInfo,
   Coordinates,
   FileDetail,
   Subcategory,
+  UploadItem,
+  UserProfile,
 } from "./types";
 
 // Client-side helpers that call our own server proxy under /api/commons.
@@ -569,4 +572,39 @@ export function getCategoryGridCached(
     gridCache.set(key, entry);
   }
   return entry;
+}
+
+// --- Connected account: profile, activity history, uploads -----------------
+
+async function getUserOp(op: string, continueToken?: string): Promise<unknown> {
+  const params = new URLSearchParams({ op });
+  if (continueToken) params.set("continue", continueToken);
+  const res = await fetch(`/api/commons/user?${params}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `user ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchUserProfile(): Promise<UserProfile> {
+  return (await getUserOp("profile")) as UserProfile;
+}
+
+export async function fetchUserActivity(
+  continueToken?: string,
+): Promise<{ items: ActivityItem[]; continueToken: string | null }> {
+  return (await getUserOp("activity", continueToken)) as {
+    items: ActivityItem[];
+    continueToken: string | null;
+  };
+}
+
+export async function fetchUserUploads(
+  continueToken?: string,
+): Promise<{ items: UploadItem[]; continueToken: string | null }> {
+  return (await getUserOp("uploads", continueToken)) as {
+    items: UploadItem[];
+    continueToken: string | null;
+  };
 }

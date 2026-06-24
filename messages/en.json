@@ -11,6 +11,22 @@
     "publishing": "Publishing…",
     "language": "Language"
   },
+  "userMenu": {
+    "menu": "User menu",
+    "edits": "{count, plural, =0 {no edits yet} one {# edit} other {# edits}}",
+    "notConfigured": "Wikimedia OAuth isn't configured",
+    "language": "Language",
+    "viewHistory": "View activity history",
+    "myUploads": "Files I added"
+  },
+  "activity": {
+    "historyTitle": "Activity History",
+    "uploadsTitle": "Files I Added",
+    "back": "Back to browsing",
+    "loadMore": "Load more",
+    "empty": "No records found",
+    "noSummary": "(no summary)"
+  },
   "sidebar": {
     "title": "Categories",
     "empty": "No category selected yet",

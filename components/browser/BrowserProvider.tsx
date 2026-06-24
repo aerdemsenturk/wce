@@ -140,7 +140,15 @@ interface BrowserState {
   /** Categories created+published this session, kept in their parent's
    * subcategory listing until Commons' categorymembers index catches up. */
   confirmedCreations: ConfirmedCreation[];
+  /** What the main content area shows: the normal category grid, or the
+   * connected account's activity history / uploads (from the user menu).
+   * Resets to "category" on any navigation (pick a category, search, back/
+   * forward) so it's a transient overlay, not a navigable route. */
+  contentView: ContentView;
+  setContentView: (view: ContentView) => void;
 }
+
+export type ContentView = "category" | "activity" | "uploads";
 
 const Ctx = createContext<BrowserState | null>(null);
 
@@ -199,6 +207,7 @@ export default function BrowserProvider({
   const [recentCategories, setRecentCategories] = useState<string[]>([]);
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [contentView, setContentView] = useState<ContentView>("category");
 
   // On first mount: load the recently-visited list, then restore the last
   // visited gallery — the most recent entry (or, on a deep link, the linked
@@ -276,6 +285,7 @@ export default function BrowserProvider({
       setSelectedFile(null);
       setSearchState(null);
       setSelected(new Set());
+      setContentView("category");
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -302,6 +312,7 @@ export default function BrowserProvider({
     setSelectedFile(null);
     setSearchState(null);
     setSelected(new Set());
+    setContentView("category");
   }, []);
 
   const selectPath = useCallback((next: string[]) => {
@@ -309,6 +320,7 @@ export default function BrowserProvider({
     setSelectedFile(null);
     setSearchState(null);
     setSelected(new Set());
+    setContentView("category");
   }, []);
 
   // Re-root the tree under `parent` while keeping the entered category (and any
@@ -566,6 +578,8 @@ export default function BrowserProvider({
       confirmedWikidata,
       clearConfirmedWikidata,
       confirmedCreations,
+      contentView,
+      setContentView,
     }),
     [
       root,
@@ -615,6 +629,7 @@ export default function BrowserProvider({
       confirmedWikidata,
       clearConfirmedWikidata,
       confirmedCreations,
+      contentView,
     ],
   );
 

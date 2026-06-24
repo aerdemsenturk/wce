@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
 import PublishResultsModal from "@/components/browser/PublishResultsModal";
-import LanguageToggle from "./LanguageToggle";
+import UserMenu from "./UserMenu";
 import CommonsCategorySearch from "./CommonsCategorySearch";
 
 export default function Header() {
@@ -71,7 +71,7 @@ export default function Header() {
         >
           {publishing ? t("publishing") : t("publish", { count: pendingChanges.length })}
         </button>
-        <LanguageToggle />
+        <UserMenu />
       </div>
 
       {(confirmOpen || publishing) && (

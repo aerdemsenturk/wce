@@ -11,6 +11,22 @@
     "publishing": "Yayınlanıyor…",
     "language": "Dil"
   },
+  "userMenu": {
+    "menu": "Kullanıcı menüsü",
+    "edits": "{count, plural, =0 {henüz düzenleme yok} one {# düzenleme} other {# düzenleme}}",
+    "notConfigured": "Wikimedia OAuth yapılandırılmamış",
+    "language": "Dil",
+    "viewHistory": "Etkinlik geçmişini gör",
+    "myUploads": "Eklediğim dosyalar"
+  },
+  "activity": {
+    "historyTitle": "Etkinlik Geçmişi",
+    "uploadsTitle": "Eklediğim Dosyalar",
+    "back": "Kategorilere dön",
+    "loadMore": "Daha fazla yükle",
+    "empty": "Kayıt bulunamadı",
+    "noSummary": "(özet yok)"
+  },
   "sidebar": {
     "title": "Kategoriler",
     "empty": "Henüz kategori seçilmedi",
