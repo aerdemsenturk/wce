@@ -26,7 +26,8 @@
     "recent": "Recently visited",
     "favorites": "My favorites",
     "favorite": "Add to favorites",
-    "unfavorite": "Remove from favorites"
+    "unfavorite": "Remove from favorites",
+    "openOnCommons": "Open on Commons"
   },
   "filters": {
     "all": "All",
@@ -178,6 +179,11 @@
     "dropHint": "Drop files here to upload",
     "tooManyFilesError": "You can upload at most {max} files at a time",
     "title": "{count, plural, one {Upload # file} other {Upload # files}}",
+    "titleEmpty": "Upload files",
+    "addFilesTitle": "Upload files",
+    "files": "Files",
+    "addFiles": "Add files",
+    "emptyHint": "Choose files with “Add files” to upload",
     "warnProduction": "Heads up: files upload directly to the real Wikimedia Commons. Only upload genuine, properly licensed content.",
     "author": "Author",
     "authorPlaceholder": "e.g. Jane Doe",

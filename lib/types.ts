@@ -16,6 +16,8 @@ export interface Subcategory {
 export interface CategoryWikidata {
   id: string; // Q-id
   label: string | null;
+  /** Wikidata item description, localized when available (main category only). */
+  description?: string | null;
 }
 
 export interface CategoryChildren {

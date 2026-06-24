@@ -359,21 +359,32 @@ async function fetchCategoryMeta(category: string): Promise<{
 }
 
 /** Resolve a Wikidata item's label, preferring the requested language. */
-async function fetchWikidataLabel(
+async function fetchWikidataLabelAndDescription(
   qid: string,
   lang: string,
-): Promise<string | null> {
+): Promise<{ label: string | null; description: string | null }> {
   const data = (await apiGet(WIKIDATA_API, {
     action: "wbgetentities",
     ids: qid,
-    props: "labels",
+    props: "labels|descriptions",
     languages: `${lang}|en`,
   })) as {
-    entities?: Record<string, { labels?: Record<string, { value: string }> }>;
+    entities?: Record<
+      string,
+      {
+        labels?: Record<string, { value: string }>;
+        descriptions?: Record<string, { value: string }>;
+      }
+    >;
   };
 
-  const labels = data.entities?.[qid]?.labels;
-  return labels?.[lang]?.value ?? labels?.en?.value ?? null;
+  const entity = data.entities?.[qid];
+  const labels = entity?.labels;
+  const descriptions = entity?.descriptions;
+  return {
+    label: labels?.[lang]?.value ?? labels?.en?.value ?? null,
+    description: descriptions?.[lang]?.value ?? descriptions?.en?.value ?? null,
+  };
 }
 
 /** Batch-resolve Wikidata labels (up to 50 ids per request). */
@@ -555,8 +566,11 @@ export async function getCategoryChildren(
 
   let wikidata: CategoryWikidata | null = null;
   if (meta.wikibaseItem) {
-    const label = await fetchWikidataLabel(meta.wikibaseItem, lang);
-    wikidata = { id: meta.wikibaseItem, label };
+    const { label, description } = await fetchWikidataLabelAndDescription(
+      meta.wikibaseItem,
+      lang,
+    );
+    wikidata = { id: meta.wikibaseItem, label, description };
   }
 
   return {

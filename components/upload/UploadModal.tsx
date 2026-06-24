@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { uploadFileToCommons } from "@/lib/api";
@@ -8,6 +8,10 @@ import { readImageExif } from "@/lib/exif";
 import type { Coordinates } from "@/lib/types";
 import { formFieldInputClassName } from "@/components/ui/FormField";
 import FilePreview from "./FilePreview";
+
+/** Cap on how many files a single batch (drag-drop or in-modal picker) may
+ * carry, shared with UploadDropZone. */
+export const MAX_UPLOAD_FILES = 25;
 
 type RowStatus = "idle" | "uploading" | "done" | "error";
 
@@ -75,6 +79,19 @@ function defaultFilename(
   return suffix ? `${base} ${suffix}${ext}` : `${base}${ext}`;
 }
 
+/** Build a fresh upload row for a picked/dropped file. */
+function makeRow(file: File, filename: string): Row {
+  return {
+    id: crypto.randomUUID(),
+    file,
+    filename,
+    description: "",
+    date: isoDate(file.lastModified),
+    location: null,
+    status: "idle",
+  };
+}
+
 export default function UploadModal({
   files,
   onClose,
@@ -100,17 +117,15 @@ export default function UploadModal({
   const [categoryInput, setCategoryInput] = useState("");
 
   const [rows, setRows] = useState<Row[]>(() =>
-    files.map((file, i) => ({
-      id: crypto.randomUUID(),
-      file,
-      filename: defaultFilename(current, file.name, i, files.length),
-      description: "",
-      date: isoDate(file.lastModified),
-      location: null,
-      status: "idle" as RowStatus,
-    })),
+    files.map((file, i) =>
+      makeRow(file, defaultFilename(current, file.name, i, files.length)),
+    ),
   );
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Lets the async EXIF reads bail out once the modal has closed.
+  const mountedRef = useRef(true);
+  useEffect(() => () => void (mountedRef.current = false), []);
 
   // Read each photo's EXIF data once, on mount, and fill in date taken / GPS
   // location where present — the user can still edit or clear them below.
@@ -133,6 +148,45 @@ export default function UploadModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the initial file set
   }, []);
+
+  // Append files chosen via the in-modal picker, reading their EXIF the same
+  // way the initial batch is read on mount.
+  function addFiles(picked: File[]) {
+    const images = picked.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return;
+    const room = MAX_UPLOAD_FILES - rows.length;
+    if (room <= 0) {
+      showToast({
+        message: t("tooManyFilesError", { max: MAX_UPLOAD_FILES }),
+        tone: "error",
+      });
+      return;
+    }
+    const accepted = images.slice(0, room);
+    if (accepted.length < images.length) {
+      showToast({
+        message: t("tooManyFilesError", { max: MAX_UPLOAD_FILES }),
+        tone: "error",
+      });
+    }
+    const total = rows.length + accepted.length;
+    const newRows = accepted.map((file, i) =>
+      makeRow(file, defaultFilename(current, file.name, rows.length + i, total)),
+    );
+    setRows((prev) => [...prev, ...newRows]);
+    for (const row of newRows) {
+      readImageExif(row.file).then((exif) => {
+        if (!mountedRef.current) return;
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? { ...r, date: exif.date ?? r.date, location: exif.location }
+              : r,
+          ),
+        );
+      });
+    }
+  }
 
   const pending = useMemo(
     () => rows.filter((r) => r.status !== "done"),
@@ -219,7 +273,7 @@ export default function UploadModal({
       >
         <div className="space-y-1">
           <h2 id={titleId} className="text-sm font-semibold text-slate-800">
-            {t("title", { count: rows.length })}
+            {rows.length === 0 ? t("titleEmpty") : t("title", { count: rows.length })}
           </h2>
           <p className="text-[11px] text-amber-600">{t("warnProduction")}</p>
         </div>
@@ -317,7 +371,35 @@ export default function UploadModal({
         </div>
 
         {/* Per-file rows */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-500">{t("files")}</span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || rows.length >= MAX_UPLOAD_FILES}
+            className="inline-flex items-center gap-1 rounded-md border border-border-base px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+          >
+            <PlusIcon />
+            {t("addFiles")}
+          </button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
         <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border-base p-2">
+          {rows.length === 0 && (
+            <li className="grid min-h-[6rem] place-items-center px-3 py-6 text-center text-xs text-slate-400">
+              {t("emptyHint")}
+            </li>
+          )}
           {rows.map((row) => (
             <li
               key={row.id}
@@ -464,6 +546,19 @@ function StatusBadge({
     );
   }
   return <span />;
+}
+
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M6 2.5V9.5M2.5 6H9.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 function PinIcon() {

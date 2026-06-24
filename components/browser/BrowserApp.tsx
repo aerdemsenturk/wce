@@ -3,6 +3,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import ResizablePanel from "@/components/layout/ResizablePanel";
 import BrowserProvider from "@/components/browser/BrowserProvider";
 import Breadcrumb from "@/components/category/Breadcrumb";
+import CategoryHeader from "@/components/category/CategoryHeader";
 import WikidataBadge from "@/components/category/WikidataBadge";
 import FileGrid from "@/components/files/FileGrid";
 import SelectionToolbar from "@/components/files/SelectionToolbar";
@@ -39,9 +40,12 @@ export default function BrowserApp({
           <UploadDropZone>
             <main className="min-w-0 flex-1 overflow-y-auto">
               <div className="sticky top-0 z-20">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base bg-panel px-6 py-3">
-                  <Breadcrumb />
-                  <WikidataBadge />
+                <div className="border-b border-border-base bg-panel">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-2 pt-3">
+                    <Breadcrumb />
+                    <WikidataBadge />
+                  </div>
+                  <CategoryHeader />
                 </div>
                 <SelectionToolbar />
               </div>

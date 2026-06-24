@@ -3,9 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "../browser/BrowserProvider";
-import UploadModal from "./UploadModal";
-
-const MAX_UPLOAD_FILES = 25;
+import UploadModal, { MAX_UPLOAD_FILES } from "./UploadModal";
 
 /** True when the drag carries OS files (an external upload), not one of our
  * internal card/category drags (which use a custom MIME, see lib/dnd.ts). */

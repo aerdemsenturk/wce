@@ -26,7 +26,8 @@
     "recent": "Son ziyaret edilenler",
     "favorites": "Favori kategorilerim",
     "favorite": "Favorilere ekle",
-    "unfavorite": "Favorilerden çıkar"
+    "unfavorite": "Favorilerden çıkar",
+    "openOnCommons": "Commons'ta aç"
   },
   "filters": {
     "all": "Tümü",
@@ -178,6 +179,11 @@
     "dropHint": "Yüklemek için dosyaları buraya bırakın",
     "tooManyFilesError": "En fazla {max} dosya yükleyebilirsiniz",
     "title": "{count, plural, one {# dosya yükle} other {# dosya yükle}}",
+    "titleEmpty": "Dosya yükle",
+    "addFilesTitle": "Dosya yükle",
+    "files": "Dosyalar",
+    "addFiles": "Dosya ekle",
+    "emptyHint": "Yüklemek için “Dosya ekle” ile dosya seçin",
     "warnProduction": "Dikkat: dosyalar doğrudan gerçek Wikimedia Commons'a yüklenir. Yalnızca uygun lisanslı, gerçek içerikleri yükleyin.",
     "author": "Yazar",
     "authorPlaceholder": "ör. Ad Soyad",
