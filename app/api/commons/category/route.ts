@@ -7,6 +7,7 @@ import {
   getCategoryParents,
   getCategoryFiles,
   getCategoryGrid,
+  getCategoryCoverImage,
   getCategoryPreviewThumbs,
   getCategoryWikidataNote,
   moveCategoryMembership,
@@ -68,6 +69,10 @@ export async function GET(request: NextRequest) {
     if (op === "preview") {
       const thumbs = await getCategoryPreviewThumbs(category);
       return NextResponse.json({ category, thumbs });
+    }
+    if (op === "cover") {
+      const url = await getCategoryCoverImage(category);
+      return NextResponse.json({ category, url });
     }
     if (op === "wikidataNote") {
       const qid = await getCategoryWikidataNote(category);

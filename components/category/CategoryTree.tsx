@@ -10,7 +10,7 @@ import CategoryNode from "./CategoryNode";
 export default function CategoryTree() {
   const t = useTranslations("sidebar");
   const locale = useLocale();
-  const { root, path, clearRoot, setTreeParent, version } = useBrowser();
+  const { root, path, setTreeParent, version } = useBrowser();
   // Parents are tagged with the category they belong to: when the root changes
   // (e.g. clicking another favorite) the previous fetch's parents must not be
   // reused for the new root, or we'd promote the wrong parent onto the tree.
@@ -67,15 +67,6 @@ export default function CategoryTree() {
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={clearRoot}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border-base bg-background px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-      >
-        <SearchIcon />
-        {t("changeRoot")}
-      </button>
-
       {altParents.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 border-b border-border-base pb-2">
           {altParents.map((parent) => (
@@ -104,27 +95,6 @@ export default function CategoryTree() {
         />
       </ul>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      aria-hidden
-      className="shrink-0"
-    >
-      <circle cx="5" cy="5" r="3" stroke="currentColor" strokeWidth="1.4" />
-      <path
-        d="M7.5 7.5L10 10"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 

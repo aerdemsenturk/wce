@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
-import { getCategoryChildrenCached } from "@/lib/api";
+import { getCategoryChildrenCached, getCategoryCoverImageCached } from "@/lib/api";
 import { resolveCategoryName, syntheticChildrenFor } from "@/lib/pendingChanges";
 import { commonsCategoryUrl } from "@/lib/category";
 import UploadModal from "@/components/upload/UploadModal";
 import Tooltip from "@/components/ui/Tooltip";
+import SearchBox from "@/components/layout/SearchBox";
+import type { FilterKey, SortKey } from "@/components/files/filters";
+import WikidataBadge from "./WikidataBadge";
 import EditCategoryModal from "./EditCategoryModal";
 import AddCategoryModal from "./AddCategoryModal";
 
@@ -19,14 +23,27 @@ import AddCategoryModal from "./AddCategoryModal";
 export default function CategoryHeader() {
   const t = useTranslations("rename");
   const tSidebar = useTranslations("sidebar");
+  const tFilters = useTranslations("filters");
   const locale = useLocale();
-  const { path, current, version, pendingChanges, favoriteCategories, toggleFavorite } =
-    useBrowser();
+  const {
+    path,
+    current,
+    version,
+    pendingChanges,
+    favoriteCategories,
+    toggleFavorite,
+    filter,
+    setFilter,
+    sort,
+    setSort,
+    counts,
+  } = useBrowser();
   const tUpload = useTranslations("upload");
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -52,6 +69,23 @@ export default function CategoryHeader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump (on publish) forces a refetch
   }, [current, locale, version]);
 
+  useEffect(() => {
+    let active = true;
+    setCoverUrl(null);
+    if (!current || syntheticChildrenFor(current, pendingChanges)) return;
+    getCategoryCoverImageCached(resolveCategoryName(current, pendingChanges))
+      .then((url) => {
+        if (active) setCoverUrl(url);
+      })
+      .catch(() => {
+        if (active) setCoverUrl(null);
+      });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump (on publish) forces a refetch
+  }, [current, version]);
+
   if (!current) return null;
 
   const parent = path.length > 1 ? path[path.length - 2] : null;
@@ -61,16 +95,54 @@ export default function CategoryHeader() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4 px-6 pb-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold leading-tight text-slate-900">
-            {current}
-          </h1>
-          {description && (
-            <p className="mt-1 line-clamp-2 text-sm text-slate-500">{description}</p>
-          )}
-        </div>
+      <div className="relative h-56 overflow-hidden">
+        {coverUrl && (
+          <>
+            <Image
+              src={coverUrl}
+              alt=""
+              fill
+              sizes="100vw"
+              quality={70}
+              className="object-cover"
+              aria-hidden
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/25 to-black/5" />
+          </>
+        )}
 
+        <div className="relative flex h-full items-end justify-between gap-4 px-6 pb-4 pt-10">
+          <div className="min-w-0">
+            <h1
+              className={
+                "truncate text-xl font-semibold leading-tight " +
+                (coverUrl ? "text-white drop-shadow-sm" : "text-slate-900")
+              }
+            >
+              {current}
+            </h1>
+            {description && (
+              <p
+                className={
+                  "mt-1 line-clamp-2 text-sm " +
+                  (coverUrl ? "text-white/85 drop-shadow-sm" : "text-slate-500")
+                }
+              >
+                {description}
+              </p>
+            )}
+          </div>
+
+          <div className="shrink-0">
+            <WikidataBadge onCover={!!coverUrl} />
+          </div>
+        </div>
+      </div>
+
+      {/* Detaches from the cover banner above (which scrolls away with the
+          page) and sticks just below the breadcrumb bar, so the actions
+          stay reachable while browsing a long file grid. */}
+      <div className="sticky top-11 z-20 flex h-11 items-center justify-between gap-4 border-b border-border-base bg-panel px-6">
         <div className="flex shrink-0 items-center gap-0.5">
           <IconButton onClick={() => setEditOpen(true)} label={t("edit")}>
             <PencilIcon />
@@ -100,6 +172,43 @@ export default function CategoryHeader() {
               <ExternalIcon />
             </a>
           </Tooltip>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as FilterKey)}
+            aria-label={tFilters("filterLabel")}
+            title={tFilters("filterLabel")}
+            className="w-28 rounded-md border border-border-base bg-panel px-1.5 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
+          >
+            <option value="all">
+              {tFilters("all")} ({counts.all})
+            </option>
+            <option value="description">
+              {tFilters("missingDescription")} ({counts.description})
+            </option>
+            <option value="date">
+              {tFilters("missingDate")} ({counts.date})
+            </option>
+            <option value="location">
+              {tFilters("missingLocation")} ({counts.location})
+            </option>
+          </select>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            aria-label={tFilters("sortLabel")}
+            title={tFilters("sortLabel")}
+            className="w-24 rounded-md border border-border-base bg-panel px-1.5 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
+          >
+            <option value="name">{tFilters("sortName")}</option>
+            <option value="date">{tFilters("sortDate")}</option>
+            <option value="missing">{tFilters("sortMissing")}</option>
+          </select>
+          <div className="w-32">
+            <SearchBox />
+          </div>
         </div>
       </div>
 

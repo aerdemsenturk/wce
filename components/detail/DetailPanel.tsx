@@ -383,7 +383,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-[11px] font-semibold text-slate-400">
         {label}
       </p>
       {children}

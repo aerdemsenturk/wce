@@ -126,6 +126,35 @@ export function getCategoryPreviewThumbsCached(
   return entry;
 }
 
+/** Wider single-image fetch for the category header's cover banner — kept
+ * separate from `fetchCategoryPreviewThumbs` so the small card mosaic isn't
+ * forced to load the same larger derivative. */
+export async function fetchCategoryCoverImage(
+  category: string,
+): Promise<string | null> {
+  const params = new URLSearchParams({ op: "cover", category });
+  const res = await fetch(`/api/commons/category?${params}`);
+  if (!res.ok) throw new Error(`cover ${res.status}`);
+  const data = (await res.json()) as { url: string | null };
+  return data.url;
+}
+
+const coverImageCache = new BoundedCache<Promise<string | null>>();
+
+export function getCategoryCoverImageCached(
+  category: string,
+): Promise<string | null> {
+  let entry = coverImageCache.get(category);
+  if (!entry) {
+    entry = fetchCategoryCoverImage(category).catch((err) => {
+      coverImageCache.delete(category);
+      throw err;
+    });
+    coverImageCache.set(category, entry);
+  }
+  return entry;
+}
+
 // Module-level cache so re-expanding a node or revisiting a category
 // doesn't refetch within the same session.
 const childrenCache = new BoundedCache<Promise<CategoryChildren>>();
@@ -508,6 +537,7 @@ export function invalidateCategory(category: string): void {
     if (key.endsWith(`:${category}`)) parentsCache.delete(key);
   }
   previewThumbsCache.delete(category);
+  coverImageCache.delete(category);
 }
 
 export async function fetchSearchFiles(

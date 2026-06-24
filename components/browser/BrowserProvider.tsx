@@ -11,9 +11,11 @@ import {
 } from "react";
 
 const ROOT_STORAGE_KEY = "wce:root-category";
+const SIDEBAR_COLLAPSED_KEY = "wce:sidebar-collapsed";
 
 import type { CategoryFileInfo } from "@/lib/types";
 import type { PendingChange, ConfirmedCreation } from "@/lib/pendingChanges";
+import type { FilterCounts, FilterKey, SortKey } from "@/components/files/filters";
 import { categoryToAppPath, categoryFromPath, withCategoryPrefix } from "@/lib/category";
 import { getRecentCategories, pushRecentCategory } from "@/lib/recentCategories";
 import {
@@ -60,8 +62,10 @@ interface BrowserState {
   favoriteCategories: string[];
   /** Add/remove a category from favorites. */
   toggleFavorite: (name: string) => void;
+  /** Whether the left sidebar (category tree) is collapsed. */
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
   setRoot: (name: string) => void;
-  clearRoot: () => void;
   /** Select a category by its full path from root. */
   selectPath: (path: string[]) => void;
   /** Promote one of the entered category's parents to the top of the tree (or
@@ -81,6 +85,16 @@ interface BrowserState {
   /** Active search query (scoped to the current category), or null. */
   search: string | null;
   setSearch: (query: string | null) => void;
+  /** Grid filter/sort — lifted out of FileGrid so CategoryHeader's sticky
+   * actions row can host the filter/sort controls alongside the search box. */
+  filter: FilterKey;
+  setFilter: (filter: FilterKey) => void;
+  sort: SortKey;
+  setSort: (sort: SortKey) => void;
+  /** Missing-field counts for the current grid, for the filter control's
+   * option labels — computed by FileGrid (it owns the file list). */
+  counts: FilterCounts;
+  setCounts: (counts: FilterCounts) => void;
   /** File titles checked for the "merge into new category" action. */
   selected: Set<string>;
   toggleSelected: (title: string) => void;
@@ -155,6 +169,14 @@ export default function BrowserProvider({
   );
   const [visibleFiles, setVisibleFiles] = useState<CategoryFileInfo[]>([]);
   const [search, setSearchState] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [sort, setSort] = useState<SortKey>("name");
+  const [counts, setCounts] = useState<FilterCounts>({
+    all: 0,
+    description: 0,
+    date: 0,
+    location: 0,
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -170,6 +192,7 @@ export default function BrowserProvider({
   const [confirmedCreations, setConfirmedCreations] = useState<ConfirmedCreation[]>([]);
   const [recentCategories, setRecentCategories] = useState<string[]>([]);
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // On first mount: load the recently-visited list, then restore the last
   // visited gallery — the most recent entry (or, on a deep link, the linked
@@ -180,6 +203,7 @@ export default function BrowserProvider({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration read
     setRecentCategories(stored);
     setFavoriteCategories(getFavoriteCategories());
+    setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
 
     if (initialClean) {
       localStorage.setItem(ROOT_STORAGE_KEY, initialClean);
@@ -255,21 +279,20 @@ export default function BrowserProvider({
     setFavoriteCategories(toggleFavoriteCategory(name));
   }, []);
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      return next;
+    });
+  }, []);
+
   const setRoot = useCallback((name: string) => {
     const clean = name.trim().replace(/^Category:/i, "");
     if (!clean) return;
     localStorage.setItem(ROOT_STORAGE_KEY, clean);
     setRootState(clean);
     setPath([clean]);
-    setSelectedFile(null);
-    setSearchState(null);
-    setSelected(new Set());
-  }, []);
-
-  const clearRoot = useCallback(() => {
-    localStorage.removeItem(ROOT_STORAGE_KEY);
-    setRootState(null);
-    setPath([]);
     setSelectedFile(null);
     setSearchState(null);
     setSelected(new Set());
@@ -492,8 +515,9 @@ export default function BrowserProvider({
       recentCategories,
       favoriteCategories,
       toggleFavorite,
+      sidebarCollapsed,
+      toggleSidebar,
       setRoot,
-      clearRoot,
       selectPath,
       setTreeParent,
       renameCurrent,
@@ -503,6 +527,12 @@ export default function BrowserProvider({
       setVisibleFiles: setVisibleFilesCb,
       search,
       setSearch,
+      filter,
+      setFilter,
+      sort,
+      setSort,
+      counts,
+      setCounts,
       selected,
       toggleSelected,
       clearSelected,
@@ -533,8 +563,9 @@ export default function BrowserProvider({
       recentCategories,
       favoriteCategories,
       toggleFavorite,
+      sidebarCollapsed,
+      toggleSidebar,
       setRoot,
-      clearRoot,
       selectPath,
       setTreeParent,
       renameCurrent,
@@ -544,6 +575,12 @@ export default function BrowserProvider({
       setVisibleFilesCb,
       search,
       setSearch,
+      filter,
+      setFilter,
+      sort,
+      setSort,
+      counts,
+      setCounts,
       selected,
       toggleSelected,
       clearSelected,

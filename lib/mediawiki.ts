@@ -802,6 +802,38 @@ export async function getCategoryPreviewThumbs(
     .filter((url): url is string => Boolean(url));
 }
 
+/** Wide enough that a full-bleed banner stretched across a desktop viewport
+ * doesn't visibly pixelate, without fetching a near-original-resolution file
+ * just to crop most of it away. */
+const COVER_IMAGE_WIDTH = 1200;
+
+/**
+ * A single, wider thumbnail for the category header's cover banner —
+ * deliberately a separate request from `getCategoryPreviewThumbs` (used by
+ * the small card mosaic) so that bumping the banner's resolution doesn't
+ * also inflate every thumbnail in the card grid.
+ */
+export async function getCategoryCoverImage(
+  category: string,
+): Promise<string | null> {
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      generator: "categorymembers",
+      gcmtitle: withCategoryPrefix(category),
+      gcmtype: "file",
+      gcmlimit: 1,
+      prop: "imageinfo",
+      iiprop: "url",
+      iiurlwidth: COVER_IMAGE_WIDTH,
+    },
+    { noStore: true },
+  )) as { query?: { pages?: ImageInfoPage[] } };
+
+  return data.query?.pages?.[0]?.imageinfo?.[0]?.thumburl ?? null;
+}
+
 /**
  * Full-text file search (CirrusSearch), optionally scoped to a category via
  * the `incategory:` keyword. Returns the same shape as the category grid.

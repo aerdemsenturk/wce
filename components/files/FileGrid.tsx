@@ -18,15 +18,8 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import CategoryCard from "./CategoryCard";
 import CreateCategoryModal from "./CreateCategoryModal";
 import FileCard from "./FileCard";
-import FilterBar from "./FilterBar";
 import SearchBanner from "./SearchBanner";
-import {
-  applyFilter,
-  applySort,
-  computeCounts,
-  type FilterKey,
-  type SortKey,
-} from "./filters";
+import { applyFilter, applySort, computeCounts } from "./filters";
 
 export default function FileGrid() {
   const t = useTranslations("sidebar");
@@ -42,14 +35,16 @@ export default function FileGrid() {
     pendingChanges,
     confirmedCreations,
     setVisibleFiles,
+    filter,
+    setFilter,
+    sort,
+    setCounts,
   } = useBrowser();
 
   const [files, setFiles] = useState<CategoryFileInfo[] | null>(null);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [sort, setSort] = useState<SortKey>("name");
 
   // Subcategories are shown as items alongside files, but aren't subject to
   // the file filter/sort bar — load them separately, skipped during search.
@@ -120,6 +115,11 @@ export default function FileGrid() {
     () => computeCounts(files ?? []),
     [files],
   );
+  // Mirrored into context so CategoryHeader's filter control (which doesn't
+  // have its own copy of the file list) can show per-option counts.
+  useEffect(() => {
+    setCounts(counts);
+  }, [counts, setCounts]);
   const visible = useMemo(
     () => applySort(applyFilter(files ?? [], filter), sort),
     [files, filter, sort],
@@ -168,14 +168,6 @@ export default function FileGrid() {
           count={files?.length ?? 0}
         />
       )}
-
-      <FilterBar
-        counts={counts}
-        filter={filter}
-        onFilter={setFilter}
-        sort={sort}
-        onSort={setSort}
-      />
 
       {visible.length === 0 && subcategories.length === 0 ? (
         <p className="py-16 text-center text-sm text-slate-400">

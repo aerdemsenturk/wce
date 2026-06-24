@@ -12,7 +12,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
  * the `title` tooltip. */
 const MAX_LABEL_CHARS = 40;
 
-export default function WikidataBadge() {
+export default function WikidataBadge({ onCover }: { onCover?: boolean }) {
   const t = useTranslations("sidebar");
   const locale = useLocale();
   const { current, pendingChanges, version, confirmedWikidata, clearConfirmedWikidata } =
@@ -75,7 +75,12 @@ export default function WikidataBadge() {
         href={wikidataNewItemUrl(current)}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-600"
+        className={
+          "inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs " +
+          (onCover
+            ? "border-white/40 text-white/70 hover:text-white"
+            : "border-slate-300 text-slate-400 hover:text-slate-600")
+        }
       >
         {t("noWikidata")}
         <ExternalIcon />
@@ -94,11 +99,19 @@ export default function WikidataBadge() {
       target="_blank"
       rel="noopener noreferrer"
       title={wikidata.label ?? wikidata.id}
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+      className={
+        "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium " +
+        (onCover ? "bg-white/15 text-white hover:bg-white/25" : "bg-sky-50 text-sky-700 hover:bg-sky-100")
+      }
     >
       <span className="shrink-0 font-mono">{wikidata.id}</span>
       {label && (
-        <span className="min-w-0 truncate border-l border-sky-200 pl-1.5">
+        <span
+          className={
+            "min-w-0 truncate border-l pl-1.5 " +
+            (onCover ? "border-white/30" : "border-sky-200")
+          }
+        >
           {label}
         </span>
       )}

@@ -14,7 +14,7 @@ export default function FavoriteCategories() {
 
   return (
     <div className="border-t border-border-base px-4 py-3">
-      <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <h3 className="mb-1.5 text-[11px] font-semibold text-slate-400">
         {t("favorites")}
       </h3>
       <ul className="space-y-0.5">

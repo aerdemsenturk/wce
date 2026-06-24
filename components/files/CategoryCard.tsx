@@ -59,10 +59,6 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
         isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-amber-200"
       }`}
     >
-      <span className="absolute top-1.5 left-1.5 z-10 grid h-5 w-5 place-items-center rounded border border-amber-200 bg-amber-50 text-amber-600">
-        <FolderIcon width={12} height={12} />
-      </span>
-
       <div className="grid aspect-square w-full grid-cols-2 gap-1 overflow-hidden rounded-t-lg bg-slate-100 p-1">
         {previewThumbs.length > 0 ? (
           previewThumbs.map((thumbUrl, index) => (

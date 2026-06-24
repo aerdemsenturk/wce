@@ -60,3 +60,14 @@ input:disabled {
   font: 600 13px/1 var(--font-sans), system-ui, sans-serif;
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
 }
+
+/* Hides the scrollbar on horizontally-scrollable strips (e.g. the
+ * breadcrumb trail) where the edge fade gradient already signals
+ * scrollability — a visible scrollbar would be redundant clutter. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

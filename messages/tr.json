@@ -13,7 +13,6 @@
   },
   "sidebar": {
     "title": "Kategoriler",
-    "changeRoot": "Yeni arama",
     "empty": "Henüz kategori seçilmedi",
     "loading": "Yükleniyor…",
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
@@ -22,14 +21,15 @@
     "addSubcategory": "Alt kategori ekle",
     "goToParent": "Üst kategoriye git: {name}",
     "useAsParent": "Üst kategori olarak ağaca al: {name}",
-    "otherParents": "{count, plural, other {# farklı üst kategori}}",
     "recent": "Son ziyaret edilenler",
     "favorites": "Favori kategorilerim",
     "favorite": "Favorilere ekle",
     "unfavorite": "Favorilerden çıkar",
     "openOnCommons": "Commons'ta aç",
     "expand": "Aç",
-    "collapse": "Kapat"
+    "collapse": "Kapat",
+    "collapseSidebar": "Kenar çubuğunu kapat",
+    "expandSidebar": "Kenar çubuğunu aç"
   },
   "filters": {
     "all": "Tümü",
@@ -37,6 +37,7 @@
     "missingDate": "Tarih eksik",
     "missingLocation": "Konum eksik",
     "uncategorized": "Kategorisiz",
+    "filterLabel": "Filtrele",
     "sortLabel": "Sırala",
     "sortName": "Ada göre",
     "sortDate": "Yükleme tarihine göre",

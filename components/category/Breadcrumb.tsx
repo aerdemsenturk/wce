@@ -1,71 +1,77 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
-import { getCategoryParentsCached } from "@/lib/api";
-import type { Subcategory } from "@/lib/types";
 
 export default function Breadcrumb() {
-  const tSidebar = useTranslations("sidebar");
-  const locale = useLocale();
-  const { root, path, selectPath, setTreeParent, version } = useBrowser();
-  const [parentMenuOpen, setParentMenuOpen] = useState(false);
-  // Tagged with the category it was fetched for, same guard as CategoryTree's
-  // copy of this fetch — avoids flashing the previous root's parents while the
-  // new root's request is still in flight.
-  const [parentData, setParentData] = useState<{
-    root: string;
-    parents: Subcategory[];
-  } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const { path, selectPath } = useBrowser();
+  const navRef = useRef<HTMLElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null);
 
+  // Keep the current (last) breadcrumb segment in view whenever the path
+  // changes — navigating up/down a level should reveal where you landed
+  // rather than leaving the trail scrolled to wherever it was before.
   useEffect(() => {
-    if (!root) {
-      setParentData(null);
-      return;
-    }
-    let active = true;
-    getCategoryParentsCached(root, locale)
-      .then((data) => {
-        if (active) setParentData({ root, parents: data });
-      })
-      .catch(() => {
-        if (active) setParentData({ root, parents: [] });
-      });
-    return () => {
-      active = false;
-    };
-  }, [root, locale, version]);
+    const nav = navRef.current;
+    if (nav) nav.scrollLeft = nav.scrollWidth;
+  }, [path]);
 
-  useEffect(() => {
-    if (!parentMenuOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) setParentMenuOpen(false);
+  // Click-and-drag horizontal scrolling for the breadcrumb trail (in addition
+  // to native touch/trackpad scroll) — a long trail can be dragged with the
+  // mouse instead of only being scrollable via wheel/touch.
+  function onPointerDown(e: React.PointerEvent<HTMLElement>) {
+    const nav = e.currentTarget;
+    dragRef.current = { startX: e.clientX, startScroll: nav.scrollLeft, moved: false };
+    // Pointer capture is deliberately NOT taken here: capturing on every
+    // pointerdown reroutes the click that follows to `nav` instead of the
+    // breadcrumb button under the cursor, breaking plain (non-drag) clicks.
+    // It's only taken once a real drag is detected, below.
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    if (!drag.moved && Math.abs(dx) > 3) {
+      drag.moved = true;
+      setDragging(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
     }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [parentMenuOpen]);
+    if (drag.moved) e.currentTarget.scrollLeft = drag.startScroll - dx;
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLElement>) {
+    const nav = e.currentTarget;
+    if (dragRef.current?.moved) {
+      nav.releasePointerCapture(e.pointerId);
+      // Swallow the click that follows a drag so releasing the mouse over a
+      // breadcrumb segment doesn't also navigate to it.
+      const suppressClick = (ev: MouseEvent) => ev.stopPropagation();
+      nav.addEventListener("click", suppressClick, { capture: true, once: true });
+    }
+    dragRef.current = null;
+    setDragging(false);
+  }
 
   if (path.length === 0) return null;
 
-  const promoted = path.length > 1 ? path[0] : null;
-  const altParents =
-    parentData && parentData.root === root
-      ? parentData.parents.filter((p) => p.name !== promoted)
-      : [];
-
   return (
-    <>
-      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1 text-sm">
+    <div className="relative min-w-0 flex-1">
+      <nav
+        ref={navRef}
+        aria-label="breadcrumb"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className={
+          "no-scrollbar flex items-center gap-1 overflow-x-auto whitespace-nowrap text-sm " +
+          (dragging ? "cursor-grabbing select-none" : "cursor-grab")
+        }
+      >
         {path.map((name, i) => {
           const isLast = i === path.length - 1;
-          // The switcher controls which name appears at the very start of the
-          // trail (`path[0]`), so it belongs right after that first segment —
-          // not next to the entered category, which may sit deeper in `path`.
-          const showParentSwitcher = i === 0 && altParents.length > 0;
           return (
-            <span key={`${name}-${i}`} className="flex items-center gap-1">
+            <span key={`${name}-${i}`} className="flex shrink-0 items-center gap-1">
               {i > 0 && <span className="text-slate-300">/</span>}
               {isLast ? (
                 <span className="font-semibold text-slate-900">{name}</span>
@@ -78,56 +84,12 @@ export default function Breadcrumb() {
                   {name}
                 </button>
               )}
-              {showParentSwitcher && (
-                <span ref={menuRef} className="relative flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setParentMenuOpen((open) => !open)}
-                    aria-label={tSidebar("otherParents", { count: altParents.length })}
-                    title={tSidebar("otherParents", { count: altParents.length })}
-                    aria-expanded={parentMenuOpen}
-                    className="text-slate-300 hover:text-slate-600"
-                  >
-                    <ChevronIcon />
-                  </button>
-                  {parentMenuOpen && (
-                    <div className="absolute left-0 top-full z-10 mt-1 min-w-[10rem] rounded-md border border-border-base bg-background py-1 shadow-md">
-                      {altParents.map((p) => (
-                        <button
-                          key={p.title}
-                          type="button"
-                          onClick={() => {
-                            setTreeParent(p.name);
-                            setParentMenuOpen(false);
-                          }}
-                          title={tSidebar("useAsParent", { name: p.name })}
-                          className="block w-full truncate px-3 py-1 text-left text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </span>
-              )}
             </span>
           );
         })}
       </nav>
-    </>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <path
-        d="M3 4.5L6 7.5L9 4.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-panel to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent" />
+    </div>
   );
 }
