@@ -35,26 +35,35 @@ export default function WikidataQuickEditModal({
   const locale = useLocale();
   const { pendingChanges, addChange, removeChange } = useBrowser();
 
-  const [base, setBase] = useState<WikidataPropertyStatements[] | null>(null);
-  const [error, setError] = useState(false);
+  const [result, setResult] = useState<{
+    key: string;
+    properties: WikidataPropertyStatements[];
+  } | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   // Which property's inline value-picker is open, if any.
   const [addingProperty, setAddingProperty] = useState<string | null>(null);
 
+  const requestKey = `${qid}:${locale}`;
+
   useEffect(() => {
     let active = true;
-    setBase(null);
-    setError(false);
     fetchWikidataStatements(qid, locale)
       .then((data) => {
-        if (active) setBase(data.properties);
+        if (active) setResult({ key: requestKey, properties: data.properties });
       })
       .catch(() => {
-        if (active) setError(true);
+        if (active) setErrorKey(requestKey);
       });
     return () => {
       active = false;
     };
-  }, [qid, locale]);
+  }, [qid, locale, requestKey]);
+
+  // Stale results/errors from a previous qid/locale are ignored — falling
+  // back to the loading state until the in-flight request for `requestKey`
+  // resolves, rather than resetting state imperatively in the effect above.
+  const base = result?.key === requestKey ? result.properties : null;
+  const error = errorKey === requestKey;
 
   const display = overlayWikidataStatements(qid, base ?? [], pendingChanges);
   const valuesFor = (property: string): WikidataStatementValue[] =>

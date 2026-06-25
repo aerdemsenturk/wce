@@ -17,6 +17,7 @@ export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [loggedOut, setLoggedOut] = useState(false);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +30,8 @@ export default function UserMenu() {
       } catch (err) {
         if (err instanceof Error && err.message === "not_configured") {
           setNotConfigured(true);
+        } else if (err instanceof Error && err.message === "not_logged_in") {
+          setLoggedOut(true);
         }
       } finally {
         setLoading(false);
@@ -74,6 +77,13 @@ export default function UserMenu() {
           <div className="px-3 py-1.5">
             {notConfigured ? (
               <p className="text-xs text-slate-400">{t("notConfigured")}</p>
+            ) : loggedOut ? (
+              <a
+                href="/api/auth/login"
+                className="block rounded-md px-1 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                {t("loginWithWikimedia")}
+              </a>
             ) : profile ? (
               <a
                 href={profile.profileUrl}
@@ -109,7 +119,7 @@ export default function UserMenu() {
 
           <button
             type="button"
-            disabled={notConfigured}
+            disabled={notConfigured || loggedOut}
             onClick={() => {
               setContentView("activity");
               setOpen(false);
@@ -121,7 +131,7 @@ export default function UserMenu() {
           </button>
           <button
             type="button"
-            disabled={notConfigured}
+            disabled={notConfigured || loggedOut}
             onClick={() => {
               setContentView("uploads");
               setOpen(false);
@@ -131,6 +141,19 @@ export default function UserMenu() {
             <UploadIcon />
             {t("myUploads")}
           </button>
+
+          {profile && (
+            <>
+              <div className="my-1.5 border-t border-border-base" />
+              <a
+                href="/api/auth/logout"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <LogoutIcon />
+                {t("logout")}
+              </a>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -157,6 +180,20 @@ function HistoryIcon() {
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
       <path
         d="M8 4.5V8l2.5 1.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M6 2H3.5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1H6M11 11l3-3-3-3M14 8H6"
         stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"

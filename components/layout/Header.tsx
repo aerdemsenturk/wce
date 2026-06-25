@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
@@ -22,10 +22,7 @@ export default function Header() {
     clearPublishResults,
   } = useBrowser();
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  useEffect(() => {
-    if (publishResults) setConfirmOpen(false);
-  }, [publishResults]);
+  const showConfirm = confirmOpen && !publishResults;
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border-base bg-panel px-4">
@@ -74,7 +71,7 @@ export default function Header() {
         <UserMenu />
       </div>
 
-      {(confirmOpen || publishing) && (
+      {(showConfirm || publishing) && (
         <PublishConfirmModal
           changes={pendingChanges}
           publishing={publishing}

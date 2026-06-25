@@ -1,10 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { uploadFile, type UploadMeta } from "@/lib/mediawiki";
+import { isLoginConfigured, refreshSessionIfNeeded } from "@/lib/session";
 
 // v2 write path: upload one new file to Commons. Multipart form-data with a
 // `file` blob plus the metadata fields used to build the description page.
 // POST /api/commons/upload
 export async function POST(request: NextRequest) {
+  let token: string | undefined;
+  if (isLoginConfigured()) {
+    const session = await refreshSessionIfNeeded();
+    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    token = session.accessToken;
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -41,7 +49,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await uploadFile(file, meta);
+    const result = await uploadFile(file, meta, token);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream error";

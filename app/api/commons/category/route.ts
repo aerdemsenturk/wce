@@ -17,6 +17,7 @@ import {
   setCategorySitelink,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
+import { isLoginConfigured, refreshSessionIfNeeded } from "@/lib/session";
 
 // Server-side proxy for read-only Commons category calls.
 // GET /api/commons/category?op=children&category=Lycian%20Way&lang=tr
@@ -101,6 +102,13 @@ export async function PATCH(request: NextRequest) {
     wikidataQid?: string | null;
   } | null;
 
+  let token: string | undefined;
+  if (isLoginConfigured()) {
+    const session = await refreshSessionIfNeeded();
+    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    token = session.accessToken;
+  }
+
   try {
     if (body?.op === "removeCategory") {
       const pageTitle = body.pageTitle?.trim();
@@ -111,7 +119,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      await removeCategoryMembership(pageTitle, category);
+      await removeCategoryMembership(pageTitle, category, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -124,7 +132,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      await addCategoryMembership(pageTitle, category);
+      await addCategoryMembership(pageTitle, category, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -141,14 +149,16 @@ export async function PATCH(request: NextRequest) {
       // set/change the Wikidata QID — skip the move (Commons rejects a
       // self-move, which would otherwise also block the Wikidata update below).
       const result =
-        oldName === newName ? { moved: [], failed: [] } : await renameCategory(oldName, newName);
+        oldName === newName
+          ? { moved: [], failed: [] }
+          : await renameCategory(oldName, newName, token);
 
       let wikidataError: string | undefined;
       if (body.wikidataQid !== undefined) {
         const qid = body.wikidataQid?.trim() || null;
         try {
-          if (qid) await setCategorySitelink(newName, qid);
-          else await clearCategorySitelink(newName);
+          if (qid) await setCategorySitelink(newName, qid, token);
+          else await clearCategorySitelink(newName, token);
         } catch (err) {
           wikidataError = err instanceof Error ? err.message : "Wikidata update failed";
         }
@@ -166,7 +176,7 @@ export async function PATCH(request: NextRequest) {
         { status: 400 },
       );
     }
-    await moveCategoryMembership(pageTitle, fromCategory, toCategory);
+    await moveCategoryMembership(pageTitle, fromCategory, toCategory, token);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream error";
@@ -195,12 +205,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let token: string | undefined;
+  if (isLoginConfigured()) {
+    const session = await refreshSessionIfNeeded();
+    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    token = session.accessToken;
+  }
+
   try {
     const result = await createCategoryFromSelection(
       name,
       parent,
       fileTitles,
       body?.wikidataQid?.trim() || null,
+      token,
     );
     return NextResponse.json(result);
   } catch (err) {

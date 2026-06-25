@@ -209,17 +209,22 @@ function canRefreshToken(): boolean {
  * Authenticated POST for write calls (action=edit, tokens, ...). Carries the
  * OAuth 2.0 Bearer token and, when minting from client credentials, retries
  * once with a fresh token if the first attempt is rejected as unauthorized.
+ * `token`, when given, is a per-visitor access token (see lib/session.ts)
+ * and is used as-is — no owner fallback, no refresh-and-retry, since a 401
+ * on it must propagate as a real error rather than silently attributing the
+ * write to the owner account instead of the visitor whose session lapsed.
  */
-async function apiPost(base: string, params: Params): Promise<unknown> {
-  return postWithBearer(base, params, false);
+async function apiPost(base: string, params: Params, token?: string): Promise<unknown> {
+  return postWithBearer(base, params, false, token);
 }
 
 async function postWithBearer(
   base: string,
   params: Params,
   isRetry: boolean,
+  explicitToken?: string,
 ): Promise<unknown> {
-  const token = await getAccessToken(isRetry);
+  const token = explicitToken ?? (await getAccessToken(isRetry));
 
   const body = new URLSearchParams();
   body.set("format", "json");
@@ -238,8 +243,10 @@ async function postWithBearer(
     },
     body,
   });
-  // An expired/revoked token comes back as 401 — mint a fresh one and retry.
-  if (res.status === 401 && !isRetry && canRefreshToken()) {
+  // An expired/revoked owner token comes back as 401 — mint a fresh one and
+  // retry. Only applies to the implicit owner token; an explicit per-visitor
+  // token that 401s falls straight through to the error below.
+  if (res.status === 401 && !explicitToken && !isRetry && canRefreshToken()) {
     return postWithBearer(base, params, true);
   }
   if (!res.ok) {
@@ -252,18 +259,24 @@ async function postWithBearer(
  * CSRF tokens are per-wiki, not global — a token minted on Commons can't be
  * used to edit Wikidata, even though the OAuth bearer token itself is valid
  * across the whole Wikimedia cluster. Pass WIKIDATA_API when writing there
- * (e.g. wbsetsitelink).
+ * (e.g. wbsetsitelink). `token` must be threaded through to the inner
+ * `apiPost` call — otherwise a per-visitor write's CSRF token would be
+ * minted under the owner identity instead.
  */
-async function getCsrfToken(base: string = COMMONS_API): Promise<string> {
-  const data = (await apiPost(base, {
-    action: "query",
-    meta: "tokens",
-    type: "csrf",
-  })) as { query?: { tokens?: { csrftoken?: string } } };
+async function getCsrfToken(base: string = COMMONS_API, token?: string): Promise<string> {
+  const data = (await apiPost(
+    base,
+    {
+      action: "query",
+      meta: "tokens",
+      type: "csrf",
+    },
+    token,
+  )) as { query?: { tokens?: { csrftoken?: string } } };
 
-  const token = data.query?.tokens?.csrftoken;
-  if (!token) throw new Error("Could not obtain a CSRF token");
-  return token;
+  const csrfToken = data.query?.tokens?.csrftoken;
+  if (!csrfToken) throw new Error("Could not obtain a CSRF token");
+  return csrfToken;
 }
 
 /**
@@ -274,8 +287,8 @@ async function getCsrfToken(base: string = COMMONS_API): Promise<string> {
  * dropdown-triggered, low-traffic, and should reflect the latest Commons
  * state rather than `apiGet`'s 5-minute revalidate window.
  */
-async function apiGetAuthed(base: string, params: Params): Promise<unknown> {
-  const token = await getAccessToken();
+async function apiGetAuthed(base: string, params: Params, explicitToken?: string): Promise<unknown> {
+  const token = explicitToken ?? (await getAccessToken());
   const url = new URL(base);
   url.searchParams.set("format", "json");
   url.searchParams.set("formatversion", "2");
@@ -298,19 +311,25 @@ async function apiGetAuthed(base: string, params: Params): Promise<unknown> {
 
 // --- Connected account: profile, activity history, uploads -----------------
 //
-// Single owner-only account (see AGENTS.md) — there's exactly one user to
-// resolve, so the username is cached for the life of the server process once
-// learned, instead of being re-fetched on every activity/uploads call.
+// With no `token` (the owner-only fallback), there's exactly one account to
+// resolve, so the username is cached for the life of the server process
+// instead of being re-fetched on every activity/uploads call. A per-visitor
+// `token` always re-resolves — caching it under the same module-level
+// variable would leak one visitor's username into another's request.
 
 let cachedUsername: string | null = null;
 
 /** The OAuth-connected Commons account's profile (editcount, registration). */
-async function getCurrentUser(): Promise<UserProfile> {
-  const data = (await apiGetAuthed(COMMONS_API, {
-    action: "query",
-    meta: "userinfo",
-    uiprop: "editcount|registrationdate",
-  })) as {
+async function getCurrentUser(token?: string): Promise<UserProfile> {
+  const data = (await apiGetAuthed(
+    COMMONS_API,
+    {
+      action: "query",
+      meta: "userinfo",
+      uiprop: "editcount|registrationdate",
+    },
+    token,
+  )) as {
     query?: {
       userinfo?: {
         name?: string;
@@ -321,7 +340,7 @@ async function getCurrentUser(): Promise<UserProfile> {
   };
   const info = data.query?.userinfo;
   if (!info?.name) throw new Error("Could not resolve the connected account");
-  cachedUsername = info.name;
+  if (!token) cachedUsername = info.name;
   return {
     username: info.name,
     editCount: info.editcount ?? 0,
@@ -330,9 +349,9 @@ async function getCurrentUser(): Promise<UserProfile> {
   };
 }
 
-async function resolveUsername(): Promise<string> {
-  if (cachedUsername) return cachedUsername;
-  return (await getCurrentUser()).username;
+async function resolveUsername(token?: string): Promise<string> {
+  if (!token && cachedUsername) return cachedUsername;
+  return (await getCurrentUser(token)).username;
 }
 
 interface UserContrib {
@@ -350,16 +369,21 @@ interface UserContrib {
 async function getUserActivity(
   continueToken?: string,
   limit = 30,
+  token?: string,
 ): Promise<{ items: ActivityItem[]; continueToken: string | null }> {
-  const username = await resolveUsername();
-  const data = (await apiGetAuthed(COMMONS_API, {
-    action: "query",
-    list: "usercontribs",
-    ucuser: username,
-    uclimit: limit,
-    ucprop: "title|timestamp|comment|sizediff|flags|ids",
-    uccontinue: continueToken,
-  })) as {
+  const username = await resolveUsername(token);
+  const data = (await apiGetAuthed(
+    COMMONS_API,
+    {
+      action: "query",
+      list: "usercontribs",
+      ucuser: username,
+      uclimit: limit,
+      ucprop: "title|timestamp|comment|sizediff|flags|ids",
+      uccontinue: continueToken,
+    },
+    token,
+  )) as {
     query?: { usercontribs?: UserContrib[] };
     continue?: { uccontinue?: string };
   };
@@ -402,20 +426,25 @@ interface AllImagesPage {
 async function getUserUploads(
   continueToken?: string,
   limit = 30,
+  token?: string,
 ): Promise<{ items: UploadItem[]; continueToken: string | null }> {
-  const username = await resolveUsername();
-  const data = (await apiGetAuthed(COMMONS_API, {
-    action: "query",
-    generator: "allimages",
-    gaiuser: username,
-    gaisort: "timestamp",
-    gaidir: "older",
-    gailimit: limit,
-    gaicontinue: continueToken,
-    prop: "imageinfo",
-    iiprop: "timestamp|url|size",
-    iiurlwidth: 160,
-  })) as {
+  const username = await resolveUsername(token);
+  const data = (await apiGetAuthed(
+    COMMONS_API,
+    {
+      action: "query",
+      generator: "allimages",
+      gaiuser: username,
+      gaisort: "timestamp",
+      gaidir: "older",
+      gailimit: limit,
+      gaicontinue: continueToken,
+      prop: "imageinfo",
+      iiprop: "timestamp|url|size",
+      iiurlwidth: 160,
+    },
+    token,
+  )) as {
     query?: { pages?: AllImagesPage[] };
     continue?: { gaicontinue?: string };
   };
@@ -644,21 +673,26 @@ async function getDepicts(pageid: number, lang: string): Promise<Depict[]> {
 export async function addDepict(
   pageid: number,
   qid: string,
+  token?: string,
 ): Promise<{ statementId: string }> {
-  const token = await getCsrfToken();
+  const csrf = await getCsrfToken(COMMONS_API, token);
   const value = JSON.stringify({
     "entity-type": "item",
     "numeric-id": Number(qid.slice(1)),
     id: qid,
   });
-  const data = (await apiPost(COMMONS_API, {
-    action: "wbcreateclaim",
-    entity: `M${pageid}`,
-    property: "P180",
-    snaktype: "value",
-    value,
+  const data = (await apiPost(
+    COMMONS_API,
+    {
+      action: "wbcreateclaim",
+      entity: `M${pageid}`,
+      property: "P180",
+      snaktype: "value",
+      value,
+      token: csrf,
+    },
     token,
-  })) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
+  )) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
 
   if (data.error) {
     throw new Error(data.error.info ?? data.error.code ?? "Could not add depicts statement");
@@ -669,13 +703,17 @@ export async function addDepict(
 }
 
 /** Remove a depicts (or any) Wikibase claim by its statement GUID. */
-export async function removeDepict(statementId: string): Promise<void> {
-  const token = await getCsrfToken();
-  const data = (await apiPost(COMMONS_API, {
-    action: "wbremoveclaims",
-    claim: statementId,
+export async function removeDepict(statementId: string, token?: string): Promise<void> {
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const data = (await apiPost(
+    COMMONS_API,
+    {
+      action: "wbremoveclaims",
+      claim: statementId,
+      token: csrf,
+    },
     token,
-  })) as { error?: { code?: string; info?: string } };
+  )) as { error?: { code?: string; info?: string } };
 
   if (data.error) {
     throw new Error(data.error.info ?? data.error.code ?? "Could not remove depicts statement");
@@ -833,22 +871,27 @@ export async function addWikidataItemStatement(
   qid: string,
   property: string,
   valueQid: string,
+  token?: string,
 ): Promise<{ statementId: string }> {
-  const token = await getCsrfToken(WIKIDATA_API);
+  const csrf = await getCsrfToken(WIKIDATA_API, token);
   const value = JSON.stringify({
     "entity-type": "item",
     "numeric-id": Number(valueQid.slice(1)),
     id: valueQid,
   });
-  const data = (await apiPost(WIKIDATA_API, {
-    action: "wbcreateclaim",
-    entity: qid,
-    property,
-    snaktype: "value",
-    value,
-    summary: "Add statement via WCE",
+  const data = (await apiPost(
+    WIKIDATA_API,
+    {
+      action: "wbcreateclaim",
+      entity: qid,
+      property,
+      snaktype: "value",
+      value,
+      summary: "Add statement via WCE",
+      token: csrf,
+    },
     token,
-  })) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
+  )) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
 
   if (data.error) {
     throw new Error(data.error.info ?? data.error.code ?? "Could not add Wikidata statement");
@@ -860,14 +903,21 @@ export async function addWikidataItemStatement(
 
 /** Remove a Wikidata claim by its statement GUID (item-side counterpart of
  * `removeDepict`, which removes Commons SDC claims). */
-export async function removeWikidataItemStatement(statementId: string): Promise<void> {
-  const token = await getCsrfToken(WIKIDATA_API);
-  const data = (await apiPost(WIKIDATA_API, {
-    action: "wbremoveclaims",
-    claim: statementId,
-    summary: "Remove statement via WCE",
+export async function removeWikidataItemStatement(
+  statementId: string,
+  token?: string,
+): Promise<void> {
+  const csrf = await getCsrfToken(WIKIDATA_API, token);
+  const data = (await apiPost(
+    WIKIDATA_API,
+    {
+      action: "wbremoveclaims",
+      claim: statementId,
+      summary: "Remove statement via WCE",
+      token: csrf,
+    },
     token,
-  })) as { error?: { code?: string; info?: string } };
+  )) as { error?: { code?: string; info?: string } };
 
   if (data.error) {
     throw new Error(data.error.info ?? data.error.code ?? "Could not remove Wikidata statement");
@@ -1438,17 +1488,22 @@ async function postEdit(
   summary: string,
   basetimestamp: string | undefined,
   extra?: Params,
+  token?: string,
 ): Promise<void> {
-  const token = await getCsrfToken();
-  const result = (await apiPost(COMMONS_API, {
-    action: "edit",
-    title,
-    text,
-    summary,
-    basetimestamp,
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const result = (await apiPost(
+    COMMONS_API,
+    {
+      action: "edit",
+      title,
+      text,
+      summary,
+      basetimestamp,
+      token: csrf,
+      ...extra,
+    },
     token,
-    ...extra,
-  })) as EditResponse;
+  )) as EditResponse;
 
   if (result.error) {
     throw new Error(result.error.info ?? result.error.code ?? "Edit failed");
@@ -1468,6 +1523,7 @@ export async function editFileDescription(
   title: string,
   lang: string,
   value: string,
+  token?: string,
 ): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
@@ -1483,7 +1539,7 @@ export async function editFileDescription(
     );
   }
 
-  await postEdit(fileTitle, updated, "Update description via WCE", page.timestamp);
+  await postEdit(fileTitle, updated, "Update description via WCE", page.timestamp, undefined, token);
 }
 
 /**
@@ -1494,6 +1550,7 @@ export async function editFileLocation(
   title: string,
   lat: number,
   lon: number,
+  token?: string,
 ): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
@@ -1503,7 +1560,7 @@ export async function editFileLocation(
   }
 
   const updated = withUpdatedLocation(page.wikitext, lat, lon);
-  await postEdit(fileTitle, updated, "Add location via WCE", page.timestamp);
+  await postEdit(fileTitle, updated, "Add location via WCE", page.timestamp, undefined, token);
 }
 
 // Allowlisted license tokens → the Commons template they expand to. Keeping
@@ -1592,6 +1649,7 @@ function buildFilePageWikitext(meta: UploadMeta): string {
 export async function uploadFile(
   file: Blob,
   meta: UploadMeta,
+  token?: string,
 ): Promise<{ title: string }> {
   const filename = sanitizeFilename(meta.filename);
   if (!filename || !/\.[A-Za-z0-9]+$/.test(filename)) {
@@ -1600,8 +1658,8 @@ export async function uploadFile(
     );
   }
 
-  const csrf = await getCsrfToken();
-  const token = await getAccessToken();
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const bearer = token ?? (await getAccessToken());
   const text = buildFilePageWikitext({ ...meta, filename });
 
   const form = new FormData();
@@ -1620,7 +1678,7 @@ export async function uploadFile(
     headers: {
       "User-Agent": USER_AGENT,
       "Api-User-Agent": USER_AGENT,
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${bearer}`,
     },
     body: form,
   });
@@ -1665,6 +1723,7 @@ export async function uploadFile(
 export async function nominateFileDeletion(
   title: string,
   reason: string,
+  token?: string,
 ): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
@@ -1674,11 +1733,11 @@ export async function nominateFileDeletion(
   }
 
   const updated = withDeletionNomination(page.wikitext, reason);
-  await postEdit(fileTitle, updated, "Nominate for deletion via WCE", page.timestamp);
+  await postEdit(fileTitle, updated, "Nominate for deletion via WCE", page.timestamp, undefined, token);
 }
 
 /** Remove a file's {{Location}}/{{Object location}} template outright. */
-export async function removeFileLocation(title: string): Promise<void> {
+export async function removeFileLocation(title: string, token?: string): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
 
   const page = await fetchPageWikitext(fileTitle);
@@ -1691,7 +1750,7 @@ export async function removeFileLocation(title: string): Promise<void> {
     throw new Error("Page has no location to remove");
   }
 
-  await postEdit(fileTitle, updated, "Remove location via WCE", page.timestamp);
+  await postEdit(fileTitle, updated, "Remove location via WCE", page.timestamp, undefined, token);
 }
 
 /**
@@ -1704,12 +1763,18 @@ export async function moveCategoryMembership(
   pageTitle: string,
   fromCategory: string,
   toCategory: string,
+  token?: string,
 ): Promise<void> {
   const page = await fetchPageWikitext(pageTitle);
   if (!page) throw new Error("Page not found");
 
   const updated = withMovedCategory(page.wikitext, fromCategory, toCategory);
   if (updated == null) {
+    // Not categorized under `fromCategory` — either it never was, or an
+    // earlier publish attempt already completed this exact move (and a
+    // mixed-result retry is replaying it). Treat the latter as success so
+    // a retry converges instead of failing forever on work already done.
+    if (withRemovedCategory(page.wikitext, toCategory) != null) return;
     throw new Error(`Page isn't categorized under "${fromCategory}"`);
   }
 
@@ -1718,6 +1783,8 @@ export async function moveCategoryMembership(
     updated,
     `Move from Category:${fromCategory} to Category:${toCategory} via WCE`,
     page.timestamp,
+    undefined,
+    token,
   );
 }
 
@@ -1726,6 +1793,7 @@ export async function moveCategoryMembership(
 export async function addCategoryMembership(
   pageTitle: string,
   category: string,
+  token?: string,
 ): Promise<void> {
   const page = await fetchPageWikitext(pageTitle);
   if (!page) throw new Error("Page not found");
@@ -1735,7 +1803,7 @@ export async function addCategoryMembership(
   }
 
   const updated = withAddedCategory(page.wikitext, category);
-  await postEdit(pageTitle, updated, `Add to Category:${category} via WCE`, page.timestamp);
+  await postEdit(pageTitle, updated, `Add to Category:${category} via WCE`, page.timestamp, undefined, token);
 }
 
 /** Remove a page's `[[Category:X]]` link outright (rather than moving it to
@@ -1743,6 +1811,7 @@ export async function addCategoryMembership(
 export async function removeCategoryMembership(
   pageTitle: string,
   category: string,
+  token?: string,
 ): Promise<void> {
   const page = await fetchPageWikitext(pageTitle);
   if (!page) throw new Error("Page not found");
@@ -1757,6 +1826,8 @@ export async function removeCategoryMembership(
     updated,
     `Remove from Category:${category} via WCE`,
     page.timestamp,
+    undefined,
+    token,
   );
 }
 
@@ -1780,29 +1851,39 @@ export async function createCategoryFromSelection(
   parentCategory: string,
   fileTitles: string[],
   wikidataQid?: string | null,
+  token?: string,
 ): Promise<CreateCategoryResult> {
   const categoryTitle = withCategoryPrefix(name);
 
-  const token = await getCsrfToken();
-  const createResult = (await apiPost(COMMONS_API, {
-    action: "edit",
-    title: categoryTitle,
-    text: buildNewCategoryWikitext(parentCategory),
-    summary: "Create category via WCE",
-    createonly: 1,
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const createResult = (await apiPost(
+    COMMONS_API,
+    {
+      action: "edit",
+      title: categoryTitle,
+      text: buildNewCategoryWikitext(parentCategory),
+      summary: "Create category via WCE",
+      createonly: 1,
+      token: csrf,
+    },
     token,
-  })) as EditResponse;
+  )) as EditResponse;
 
   if (createResult.error) {
-    throw new Error(
-      createResult.error.info ?? createResult.error.code ?? "Could not create category",
-    );
+    // "articleexists" means an earlier publish attempt already created this
+    // page (a mixed-result retry is replaying it) — continue to the
+    // sitelink/file steps below instead of failing the whole retry forever.
+    if (createResult.error.code !== "articleexists") {
+      throw new Error(
+        createResult.error.info ?? createResult.error.code ?? "Could not create category",
+      );
+    }
   }
 
   let wikidataError: string | undefined;
   if (wikidataQid) {
     try {
-      await setCategorySitelink(name, wikidataQid);
+      await setCategorySitelink(name, wikidataQid, token);
     } catch (err) {
       wikidataError = err instanceof Error ? err.message : "Wikidata link failed";
     }
@@ -1812,7 +1893,7 @@ export async function createCategoryFromSelection(
   const failed: { title: string; error: string }[] = [];
   for (const title of fileTitles) {
     try {
-      await moveCategoryMembership(title, parentCategory, name);
+      await moveCategoryMembership(title, parentCategory, name, token);
       moved.push(title);
     } catch (err) {
       failed.push({
@@ -1852,13 +1933,17 @@ interface SitelinkResponse {
  * pageprop (and so the sidebar badge) can stay stale for many minutes after a
  * sitelink is set/cleared. Non-fatal — the link is already correct on Wikidata
  * regardless. */
-async function purgeCommonsPage(title: string): Promise<void> {
+async function purgeCommonsPage(title: string, token?: string): Promise<void> {
   try {
-    await apiPost(COMMONS_API, {
-      action: "purge",
-      titles: title,
-      forcelinkupdate: 1,
-    });
+    await apiPost(
+      COMMONS_API,
+      {
+        action: "purge",
+        titles: title,
+        forcelinkupdate: 1,
+      },
+      token,
+    );
   } catch {
     // Ignore: the connection still propagates on its own eventually.
   }
@@ -1872,17 +1957,22 @@ async function purgeCommonsPage(title: string): Promise<void> {
 export async function setCategorySitelink(
   category: string,
   qid: string,
+  token?: string,
 ): Promise<void> {
   const title = withCategoryPrefix(category);
-  const token = await getCsrfToken(WIKIDATA_API);
-  const data = (await apiPost(WIKIDATA_API, {
-    action: "wbsetsitelink",
-    id: qid,
-    linksite: "commonswiki",
-    linktitle: title,
-    summary: "Link via WCE",
+  const csrf = await getCsrfToken(WIKIDATA_API, token);
+  const data = (await apiPost(
+    WIKIDATA_API,
+    {
+      action: "wbsetsitelink",
+      id: qid,
+      linksite: "commonswiki",
+      linktitle: title,
+      summary: "Link via WCE",
+      token: csrf,
+    },
     token,
-  })) as SitelinkResponse;
+  )) as SitelinkResponse;
 
   if (data.error) {
     throw new Error(
@@ -1891,24 +1981,28 @@ export async function setCategorySitelink(
   }
 
   // Nudge Commons to register the new connection immediately.
-  await purgeCommonsPage(title);
+  await purgeCommonsPage(title, token);
 }
 
 /** Remove the `commonswiki` sitelink from whichever Wikidata item currently
  * points at this category, if any. */
-export async function clearCategorySitelink(category: string): Promise<void> {
+export async function clearCategorySitelink(category: string, token?: string): Promise<void> {
   const title = withCategoryPrefix(category);
   const meta = await fetchCategoryMeta(title);
   if (!meta.wikibaseItem) return;
 
-  const token = await getCsrfToken(WIKIDATA_API);
-  const data = (await apiPost(WIKIDATA_API, {
-    action: "wbsetsitelink",
-    id: meta.wikibaseItem,
-    linksite: "commonswiki",
-    summary: "Unlink via WCE",
+  const csrf = await getCsrfToken(WIKIDATA_API, token);
+  const data = (await apiPost(
+    WIKIDATA_API,
+    {
+      action: "wbsetsitelink",
+      id: meta.wikibaseItem,
+      linksite: "commonswiki",
+      summary: "Unlink via WCE",
+      token: csrf,
+    },
     token,
-  })) as SitelinkResponse;
+  )) as SitelinkResponse;
 
   if (data.error) {
     throw new Error(
@@ -1917,7 +2011,7 @@ export async function clearCategorySitelink(category: string): Promise<void> {
   }
 
   // Nudge Commons to drop the now-removed connection immediately.
-  await purgeCommonsPage(title);
+  await purgeCommonsPage(title, token);
 }
 
 interface MoveResponse {
@@ -1942,20 +2036,34 @@ export interface RenameCategoryResult {
 export async function renameCategory(
   oldName: string,
   newName: string,
+  token?: string,
 ): Promise<RenameCategoryResult> {
-  const token = await getCsrfToken();
-  const moveResult = (await apiPost(COMMONS_API, {
-    action: "move",
-    from: withCategoryPrefix(oldName),
-    to: withCategoryPrefix(newName),
-    reason: "Rename via WCE",
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const moveResult = (await apiPost(
+    COMMONS_API,
+    {
+      action: "move",
+      from: withCategoryPrefix(oldName),
+      to: withCategoryPrefix(newName),
+      reason: "Rename via WCE",
+      token: csrf,
+    },
     token,
-  })) as MoveResponse;
+  )) as MoveResponse;
 
   if (moveResult.error) {
-    throw new Error(
-      moveResult.error.info ?? moveResult.error.code ?? "Could not rename category",
-    );
+    // "missingtitle" on `from` means an earlier publish attempt already
+    // completed this exact move (a mixed-result retry is replaying it) —
+    // confirm the destination exists and continue to the file step below
+    // instead of failing the whole retry forever.
+    const alreadyMoved =
+      moveResult.error.code === "missingtitle" &&
+      (await fetchPageWikitext(withCategoryPrefix(newName))) != null;
+    if (!alreadyMoved) {
+      throw new Error(
+        moveResult.error.info ?? moveResult.error.code ?? "Could not rename category",
+      );
+    }
   }
 
   const files = await getCategoryFiles(oldName);
@@ -1963,7 +2071,7 @@ export async function renameCategory(
   const failed: { title: string; error: string }[] = [];
   for (const file of files) {
     try {
-      await moveCategoryMembership(file.title, oldName, newName);
+      await moveCategoryMembership(file.title, oldName, newName, token);
       moved.push(file.title);
     } catch (err) {
       failed.push({

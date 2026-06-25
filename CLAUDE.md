@@ -34,24 +34,36 @@ Commons categories and file metadata, built for small editorial teams working wi
 heritage content. See `README.md` and `PROJECT.md` for the full feature list and build status.
 
 This is v2: editing is in scope (description, categories, depicts, location, file uploads,
-drag-and-drop recategorization, category create/rename) gated behind a single owner-only OAuth
-2.0 access token — there is no login flow or multi-user auth. Without
-`WIKIMEDIA_OAUTH_ACCESS_TOKEN` set, the app still works as a read-only browser; write endpoints
-return a disabled error instead of calling Commons.
+drag-and-drop recategorization, category create/rename). Anonymous browsing needs no login.
+Editing requires the visitor to log in with their own Wikimedia account via a real OAuth 2.0
+Authorization Code + PKCE flow (`app/api/auth/{login,callback,logout}`, session encrypted in an
+httpOnly cookie by `lib/session.ts`) — any Wikimedia account can edit, gated only by Commons' own
+block/rights system. A separate, legacy owner-only OAuth mechanism
+(`WIKIMEDIA_OAUTH_CLIENT_ID`/`_SECRET`/`_ACCESS_TOKEN`) is still wired into `lib/mediawiki.ts` as
+the fallback used whenever no per-visitor token is supplied — kept temporarily pending a decision
+on removal, and is what's active for a deployment that hasn't configured the per-visitor login
+vars at all. Without any of these set, write endpoints return a disabled error instead of calling
+Commons; the app still works as a read-only browser.
 
 ## Architecture
 
 **Data flow:** all Wikimedia/Wikidata calls happen server-side in `lib/mediawiki.ts` — the only
 module that talks to `commons.wikimedia.org` and `wikidata.org`. It sets the required
-`User-Agent`, attaches the OAuth bearer token for writes, and mints per-wiki CSRF tokens (a
-token minted on Commons can't be reused on Wikidata, even though the OAuth bearer is shared).
-Read calls revalidate every 5 minutes; write calls are not cached. `lib/mediawiki.ts` is wrapped
-by proxy routes under `app/api/commons/{category,file,search,upload}/route.ts` and
-`app/api/wikidata/search/route.ts`. The client never calls Wikimedia/Wikidata APIs directly — it
-goes through the fetch helpers in `lib/api.ts`, which also maintain `BoundedCache` (LRU-evicting
-`Map`) caches (children, file detail, parents, preview thumbs) so re-expanding a tree node or
-revisiting a category doesn't refetch within the same session. Write helpers in `lib/api.ts`
-invalidate the relevant cache entries after a successful edit.
+`User-Agent` and mints per-wiki CSRF tokens (a token minted on Commons can't be reused on
+Wikidata, even though the OAuth bearer is shared). Every write/auth-read function takes an
+optional trailing `token?: string`: route handlers resolve the logged-in visitor's access token
+via `lib/session.ts` and pass it explicitly; when omitted, the function falls back to the legacy
+owner-only token resolution. `lib/session.ts` has no dependency on `lib/mediawiki.ts` — it only
+manages the encrypted session cookie and PKCE handshake; route handlers are the integration point
+that reads a token from a session and hands it to `lib/mediawiki.ts`. Read calls revalidate every
+5 minutes; write calls are not cached. `lib/mediawiki.ts` is wrapped by proxy routes under
+`app/api/commons/{category,file,search,upload,user}/route.ts`, `app/api/wikidata/{search,statements}/route.ts`,
+and the login flow's `app/api/auth/{login,callback,logout}/route.ts`. The client never calls
+Wikimedia/Wikidata APIs directly — it goes through the fetch helpers in `lib/api.ts`, which also
+maintain `BoundedCache` (LRU-evicting `Map`) caches (children, file detail, parents, preview
+thumbs) so re-expanding a tree node or revisiting a category doesn't refetch within the same
+session. Write helpers in `lib/api.ts` invalidate the relevant cache entries after a successful
+edit.
 
 ```
 Browser components → lib/api.ts (fetch + cache + write helpers) → app/api/commons/*, app/api/wikidata/*
@@ -116,11 +128,18 @@ coordinates).
 
 ## Environment variables
 
-Write features (description/category/depict/location edits, uploads) require a Wikimedia OAuth
-2.0 access token tied to a single account, in `.env.local` (gitignored):
+Read-only browsing works with no environment configuration at all. Two independent write
+mechanisms, in `.env.local` (gitignored):
 
 ```
+# Per-visitor login (preferred) — any Wikimedia account can log in and edit as itself.
+WIKIMEDIA_OAUTH_LOGIN_CLIENT_ID=...
+WIKIMEDIA_OAUTH_LOGIN_CLIENT_SECRET=...
+WIKIMEDIA_OAUTH_LOGIN_CALLBACK_URL=https://<domain>/api/auth/callback
+SESSION_SECRET=...           # encrypts the session cookie; required once the above are set
+
+# Legacy owner-only fallback — used whenever no per-visitor session exists.
+WIKIMEDIA_OAUTH_CLIENT_ID=...
+WIKIMEDIA_OAUTH_CLIENT_SECRET=...
 WIKIMEDIA_OAUTH_ACCESS_TOKEN=...
 ```
-
-Read-only browsing works with no environment configuration at all.

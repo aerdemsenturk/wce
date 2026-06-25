@@ -9,6 +9,7 @@ import {
   removeDepict,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
+import { isLoginConfigured, refreshSessionIfNeeded } from "@/lib/session";
 
 // Server-side proxy for read-only Commons file detail.
 // GET /api/commons/file?title=File:Foo.jpg&lang=tr
@@ -60,6 +61,13 @@ export async function PATCH(request: NextRequest) {
     reason?: string;
   } | null;
 
+  let token: string | undefined;
+  if (isLoginConfigured()) {
+    const session = await refreshSessionIfNeeded();
+    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    token = session.accessToken;
+  }
+
   try {
     if (body?.op === "addDepict") {
       if (typeof body.pageid !== "number" || !body.qid?.trim()) {
@@ -68,7 +76,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      const result = await addDepict(body.pageid, body.qid.trim());
+      const result = await addDepict(body.pageid, body.qid.trim(), token);
       return NextResponse.json(result);
     }
 
@@ -80,7 +88,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      await removeDepict(statementId);
+      await removeDepict(statementId, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -96,7 +104,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      await editFileLocation(locationTitle, body.lat, body.lon);
+      await editFileLocation(locationTitle, body.lat, body.lon, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -105,7 +113,7 @@ export async function PATCH(request: NextRequest) {
       if (!locationTitle) {
         return NextResponse.json({ error: "Missing 'title'" }, { status: 400 });
       }
-      await removeFileLocation(locationTitle);
+      await removeFileLocation(locationTitle, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -118,7 +126,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      await nominateFileDeletion(deletionTitle, reason);
+      await nominateFileDeletion(deletionTitle, reason, token);
       return NextResponse.json({ ok: true });
     }
 
@@ -131,7 +139,7 @@ export async function PATCH(request: NextRequest) {
         { status: 400 },
       );
     }
-    await editFileDescription(title, lang, value);
+    await editFileDescription(title, lang, value, token);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream error";

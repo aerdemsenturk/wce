@@ -5,6 +5,7 @@ import {
   removeWikidataItemStatement,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
+import { isLoginConfigured, refreshSessionIfNeeded } from "@/lib/session";
 
 // Read the curated statements off a category's Wikidata item.
 // GET /api/wikidata/statements?qid=Q42&lang=tr
@@ -39,6 +40,13 @@ export async function PATCH(request: NextRequest) {
     statementId?: string;
   } | null;
 
+  let token: string | undefined;
+  if (isLoginConfigured()) {
+    const session = await refreshSessionIfNeeded();
+    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    token = session.accessToken;
+  }
+
   try {
     if (body?.op === "add") {
       const qid = body.qid?.trim();
@@ -50,7 +58,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 },
         );
       }
-      const result = await addWikidataItemStatement(qid, property, valueQid);
+      const result = await addWikidataItemStatement(qid, property, valueQid, token);
       return NextResponse.json(result);
     }
 
@@ -59,7 +67,7 @@ export async function PATCH(request: NextRequest) {
       if (!statementId) {
         return NextResponse.json({ error: "Missing 'statementId'" }, { status: 400 });
       }
-      await removeWikidataItemStatement(statementId);
+      await removeWikidataItemStatement(statementId, token);
       return NextResponse.json({ ok: true });
     }
 

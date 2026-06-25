@@ -48,7 +48,10 @@ read-mostly proxy over the MediaWiki and Wikidata APIs.
 - **i18n:** `next-intl` (cookie-based locale, no locale routing)
 - **Data sources:** MediaWiki Action API (`commons.wikimedia.org`), Wikidata API
   (`www.wikidata.org`), Nominatim (reverse geocoding)
-- **Auth:** Wikimedia OAuth 2.0 (owner-only consumer — single-account editing, no login flow)
+- **Auth:** Wikimedia OAuth 2.0 — per-visitor Authorization Code + PKCE login for editing (any
+  Wikimedia account, session in an encrypted httpOnly cookie); a legacy owner-only client
+  remains wired in `lib/mediawiki.ts` as a fallback for deployments that haven't configured
+  per-visitor login
 
 All upstream API calls happen server-side, through `lib/mediawiki.ts` and the proxy routes
 under `app/api/`, so a proper `User-Agent` is always sent and the client never talks to
@@ -67,31 +70,49 @@ Other scripts:
 npm run build    # production build — also the project's typecheck (types + lint must be clean)
 npm run start     # run the production build
 npm run lint      # eslint
+npm test          # vitest run — unit tests for pure lib helpers
 ```
 
 ### Environment variables
 
-Editing features require a Wikimedia OAuth 2.0 access token tied to a single account. Create
-`.env.local` (gitignored) with:
+Read-only browsing needs no environment configuration. Editing needs one of two mechanisms,
+configured in `.env.local` (gitignored):
+
+**Per-visitor login (preferred)** — any Wikimedia account can log in and edit as itself:
+
+```
+WIKIMEDIA_OAUTH_LOGIN_CLIENT_ID=...
+WIKIMEDIA_OAUTH_LOGIN_CLIENT_SECRET=...
+WIKIMEDIA_OAUTH_LOGIN_CALLBACK_URL=https://<your-domain>/api/auth/callback
+SESSION_SECRET=...
+```
+
+Register a normal (not owner-only) OAuth 2.0 consumer at
+`Special:OAuthConsumerRegistration/propose` on `meta.wikimedia.org` — confidential client,
+callback URL exactly matching `WIKIMEDIA_OAUTH_LOGIN_CALLBACK_URL`, applicable to all Wikimedia
+wikis, with the same edit/upload/move grants the legacy consumer below has.
+
+**Legacy owner-only fallback** — single pre-approved account, used whenever no visitor is
+logged in:
 
 ```
 WIKIMEDIA_OAUTH_CLIENT_ID=...
 WIKIMEDIA_OAUTH_CLIENT_SECRET=...
-WIKIMEDIA_OAUTH_CALLBACK_URL=http://localhost:3000
 WIKIMEDIA_OAUTH_ACCESS_TOKEN=...
 ```
 
-Without `WIKIMEDIA_OAUTH_ACCESS_TOKEN`, the app still works as a read-only browser — writes are
-simply disabled.
+Without any of the above, the app still works as a read-only browser — writes are simply
+disabled.
 
 ## Project structure
 
 ```
 wce/
 ├── app/
+│   ├── api/auth/{login,callback,logout}/route.ts     # Per-visitor OAuth login flow
 │   ├── api/commons/{category,file,search,upload,user}/route.ts  # MediaWiki proxy routes
 │   ├── api/geocode/reverse/route.ts                  # Nominatim proxy
-│   └── api/wikidata/search/route.ts                   # Wikidata search proxy
+│   └── api/wikidata/{search,statements}/route.ts      # Wikidata proxy routes
 ├── components/
 │   ├── browser/      # BrowserProvider (nav state, selection, pending-changes queue), publish modals
 │   ├── category/      # Sidebar tree, breadcrumb, Wikidata badge, header, recents/favorites
@@ -103,6 +124,7 @@ wce/
 │   └── ui/             # Shared inputs, pickers, toast
 ├── lib/
 │   ├── mediawiki.ts    # Server-side MediaWiki/Wikidata client (reads + writes)
+│   ├── session.ts      # Encrypted per-visitor login session + PKCE handshake
 │   ├── wikitext.ts     # {{Information}} / {{Location}} parsing + targeted patch helpers
 │   ├── api.ts          # Client fetch helpers + in-memory caches
 │   ├── dnd.ts           # Drag-and-drop payload helpers
@@ -119,6 +141,8 @@ wce/
 ## Status
 
 Actively developed. Category/file browsing, metadata viewing, and a growing set of editing
-operations (description, categories, location, depicts) are implemented against a real Commons
-account via an owner-only OAuth consumer. There is no test suite yet — verify changes with
-`npm run build` and manual checks in the browser.
+operations (description, categories, location, depicts) are implemented against real Commons
+accounts. Per-visitor Wikimedia login is implemented; live end-to-end verification is pending
+approval of the new OAuth consumer. Vitest covers the pure helpers in `lib/` (e.g.
+`lib/wikitext.ts`, `lib/session.ts`); there is no integration/UI test coverage — verify those
+changes with `npm run build` and manual checks in the browser.

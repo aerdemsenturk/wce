@@ -43,7 +43,7 @@ export default function CategoryHeader() {
   const [addOpen, setAddOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -69,22 +69,28 @@ export default function CategoryHeader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump (on publish) forces a refetch
   }, [current, locale, version]);
 
+  const coverKey = `${current}:${version}`;
+
   useEffect(() => {
     let active = true;
-    setCoverUrl(null);
     if (!current || syntheticChildrenFor(current, pendingChanges)) return;
     getCategoryCoverImageCached(resolveCategoryName(current, pendingChanges))
       .then((url) => {
-        if (active) setCoverUrl(url);
+        if (active) setCover({ key: coverKey, url });
       })
       .catch(() => {
-        if (active) setCoverUrl(null);
+        if (active) setCover({ key: coverKey, url: null });
       });
     return () => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure; version bump (on publish) forces a refetch
-  }, [current, version]);
+  }, [current, coverKey]);
+
+  // A category/version change invalidates `coverKey`, so a result fetched for
+  // a previous key is ignored automatically instead of being reset on every
+  // change of `current`/`version`.
+  const coverUrl = cover?.key === coverKey ? cover.url : null;
 
   if (!current) return null;
 
