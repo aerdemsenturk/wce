@@ -40,14 +40,14 @@ export async function PATCH(request: NextRequest) {
     statementId?: string;
   } | null;
 
-  let token: string | undefined;
-  if (isLoginConfigured()) {
-    const session = await refreshSessionIfNeeded();
-    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
-    token = session.accessToken;
-  }
-
   try {
+    let token: string | undefined;
+    if (isLoginConfigured()) {
+      const session = await refreshSessionIfNeeded();
+      if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+      token = session.accessToken;
+    }
+
     if (body?.op === "add") {
       const qid = body.qid?.trim();
       const property = body.property?.trim();
@@ -73,6 +73,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ error: `Unknown op '${body?.op ?? ""}'` }, { status: 400 });
   } catch (err) {
+    console.error("PATCH /api/wikidata/statements failed:", err);
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });
   }

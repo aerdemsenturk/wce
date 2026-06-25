@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
     const result = await uploadFile(file, meta, token);
     return NextResponse.json(result);
   } catch (err) {
+    console.error("POST /api/commons/upload failed:", err);
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });
   }

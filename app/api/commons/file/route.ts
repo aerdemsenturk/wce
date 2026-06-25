@@ -61,14 +61,14 @@ export async function PATCH(request: NextRequest) {
     reason?: string;
   } | null;
 
-  let token: string | undefined;
-  if (isLoginConfigured()) {
-    const session = await refreshSessionIfNeeded();
-    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
-    token = session.accessToken;
-  }
-
   try {
+    let token: string | undefined;
+    if (isLoginConfigured()) {
+      const session = await refreshSessionIfNeeded();
+      if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+      token = session.accessToken;
+    }
+
     if (body?.op === "addDepict") {
       if (typeof body.pageid !== "number" || !body.qid?.trim()) {
         return NextResponse.json(
@@ -142,6 +142,7 @@ export async function PATCH(request: NextRequest) {
     await editFileDescription(title, lang, value, token);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error("PATCH /api/commons/file failed:", err);
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });
   }
