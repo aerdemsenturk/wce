@@ -102,14 +102,14 @@ export async function PATCH(request: NextRequest) {
     wikidataQid?: string | null;
   } | null;
 
-  let token: string | undefined;
-  if (isLoginConfigured()) {
-    const session = await refreshSessionIfNeeded();
-    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
-    token = session.accessToken;
-  }
-
   try {
+    let token: string | undefined;
+    if (isLoginConfigured()) {
+      const session = await refreshSessionIfNeeded();
+      if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+      token = session.accessToken;
+    }
+
     if (body?.op === "removeCategory") {
       const pageTitle = body.pageTitle?.trim();
       const category = body.category?.trim();
@@ -179,6 +179,7 @@ export async function PATCH(request: NextRequest) {
     await moveCategoryMembership(pageTitle, fromCategory, toCategory, token);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error("PATCH /api/commons/category failed:", err);
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });
   }
@@ -205,14 +206,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let token: string | undefined;
-  if (isLoginConfigured()) {
-    const session = await refreshSessionIfNeeded();
-    if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
-    token = session.accessToken;
-  }
-
   try {
+    let token: string | undefined;
+    if (isLoginConfigured()) {
+      const session = await refreshSessionIfNeeded();
+      if (!session) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+      token = session.accessToken;
+    }
+
     const result = await createCategoryFromSelection(
       name,
       parent,
@@ -222,6 +223,7 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json(result);
   } catch (err) {
+    console.error("POST /api/commons/category failed:", err);
     const message = err instanceof Error ? err.message : "Upstream error";
     return NextResponse.json({ error: message }, { status: 502 });
   }
