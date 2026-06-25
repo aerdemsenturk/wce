@@ -123,8 +123,10 @@ interface BrowserState {
   redo: () => void;
   redoCount: number;
   publishing: boolean;
-  /** Writes every pending change to Commons in order; a change that hits a
-   * real edit conflict (or other failure) is skipped, not retried. */
+  /** Writes every pending change to Commons in order. Changes that succeed are
+   * dropped from the queue; a change that hits a real edit conflict (or other
+   * failure) is kept in the queue so the user can fix the issue and re-publish
+   * just the failed ones. */
   publishAll: () => Promise<void>;
   publishResults: PublishResult[] | null;
   clearPublishResults: () => void;
@@ -507,7 +509,12 @@ export default function BrowserProvider({
         });
       }
     }
-    setPendingChanges([]);
+    // Drop only the changes that published cleanly; keep the failed ones queued
+    // so the user can resolve the issue and re-publish just those.
+    const failedIds = new Set(
+      results.filter((r) => r.status !== "success").map((r) => r.changeId),
+    );
+    setPendingChanges((prev) => prev.filter((c) => failedIds.has(c.id)));
     setRedoStack([]);
     setPublishResults(results);
     setPublishing(false);

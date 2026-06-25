@@ -19,9 +19,13 @@ npm run dev      # dev server (localhost:3000)
 npm run build    # production build — also the closest thing to a typecheck (must pass: types + lint clean)
 npm run start    # run the production build
 npm run lint     # eslint
+npm test         # vitest run — unit tests for pure lib helpers
+npm run test:watch  # vitest in watch mode
 ```
 
-There is no test suite. Verify changes via `npm run build` and manual checks in the browser.
+The only automated tests are Vitest unit tests for pure functions in `lib/` (e.g.
+`lib/wikitext.test.ts` covers the wikitext patch helpers). There is no integration/UI test
+coverage — verify those changes via `npm run build` and manual checks in the browser.
 
 ## Project purpose and scope
 

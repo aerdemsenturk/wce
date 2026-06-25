@@ -13,6 +13,7 @@ export default function PublishResultsModal({
 }) {
   const t = useTranslations("publish");
   const titleId = useId();
+  const failedCount = results.filter((r) => r.status !== "success").length;
 
   return (
     <div
@@ -43,16 +44,22 @@ export default function PublishResultsModal({
               </span>
               <span className="flex-1 text-slate-700">
                 {r.label}
-                {r.status === "skipped" && (
-                  <span className="ml-1.5 text-amber-600">— {t("skipped")}</span>
+                {r.status !== "success" && (
+                  <span className="ml-1.5 text-amber-600">— {t("failed")}</span>
                 )}
-                {r.status === "skipped" && r.message && (
+                {r.status !== "success" && r.message && (
                   <span className="mt-0.5 block text-xs text-slate-500">{r.message}</span>
                 )}
               </span>
             </li>
           ))}
         </ul>
+
+        {failedCount > 0 && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            {t("retryHint", { count: failedCount })}
+          </p>
+        )}
 
         <div className="flex justify-end pt-1">
           <button

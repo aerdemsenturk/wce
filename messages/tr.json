@@ -193,7 +193,8 @@
   },
   "publish": {
     "title": "Yayınlama sonucu",
-    "skipped": "çakıştı, atlandı",
+    "failed": "başarısız",
+    "retryHint": "{count, plural, one {# değişiklik kuyruğunda tutuldu — sorunu giderip yeniden yayınlayın.} other {# değişiklik kuyruğunda tutuldu — sorunu giderip yeniden yayınlayın.}}",
     "close": "Kapat",
     "confirmTitle": "{count} değişikliği yayınla",
     "confirmConfirm": "Yayınla",

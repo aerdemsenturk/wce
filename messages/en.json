@@ -193,7 +193,8 @@
   },
   "publish": {
     "title": "Publish results",
-    "skipped": "conflicted, skipped",
+    "failed": "failed",
+    "retryHint": "{count, plural, one {# change was kept in your queue — fix the issue and publish again.} other {# changes were kept in your queue — fix the issue and publish again.}}",
     "close": "Close",
     "confirmTitle": "Publish {count} changes",
     "confirmConfirm": "Publish",
