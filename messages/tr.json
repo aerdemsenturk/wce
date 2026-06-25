@@ -34,6 +34,7 @@
     "fileCount": "{count, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
     "subcatCount": "{count, plural, =0 {alt kategori yok} one {# alt kategori} other {# alt kategori}}",
     "noWikidata": "Wikidata bağlantısı yok",
+    "editWikidata": "Wikidata ifadelerini düzenle",
     "addSubcategory": "Alt kategori ekle",
     "goToParent": "Üst kategoriye git: {name}",
     "useAsParent": "Üst kategori olarak ağaca al: {name}",
@@ -46,6 +47,34 @@
     "collapse": "Kapat",
     "collapseSidebar": "Kenar çubuğunu kapat",
     "expandSidebar": "Kenar çubuğunu aç"
+  },
+  "wikidata": {
+    "title": "Wikidata ifadeleri",
+    "close": "Kapat",
+    "loading": "Yükleniyor…",
+    "loadError": "Wikidata ifadeleri yüklenemedi.",
+    "addValue": "Ekle",
+    "undo": "Geri al",
+    "remove": "Kaldır",
+    "addOnWikidata": "Wikidata'da ekle",
+    "editOnWikidata": "Wikidata'da düzenle",
+    "openOnWikidata": "Wikidata'da aç",
+    "addLabel": "{category} öğesine {property} “{value}” ekle",
+    "removeLabel": "{category} öğesinden {property} “{value}” kaldır",
+    "props": {
+      "instanceOf": "Şu türden",
+      "locatedIn": "Bulunduğu idari birim",
+      "country": "Ülke",
+      "location": "Konum",
+      "locationOfDiscovery": "Keşif/bulunduğu yer",
+      "partOf": "Parçası olduğu",
+      "collection": "Koleksiyon",
+      "inventoryNumber": "Envanter numarası",
+      "heritageDesignation": "Miras statüsü",
+      "inception": "Kuruluş/yapım tarihi",
+      "coordinates": "Koordinatlar",
+      "image": "Görsel"
+    }
   },
   "filters": {
     "all": "Tümü",

@@ -35,6 +35,8 @@ import {
   createCategoryFromSelection,
   renameCategory,
   invalidateCategory,
+  addWikidataStatement,
+  removeWikidataStatement,
 } from "@/lib/api";
 
 export interface Toast {
@@ -456,6 +458,10 @@ export default function BrowserProvider({
           await removeFileLocation(change.fileTitle);
         } else if (change.type === "nominateDeletion") {
           await nominateFileDeletion(change.fileTitle, change.reason);
+        } else if (change.type === "addWikidataStatement") {
+          await addWikidataStatement(change.qid, change.property, change.valueQid);
+        } else if (change.type === "removeWikidataStatement") {
+          await removeWikidataStatement(change.statementId);
         } else if (change.type === "rename") {
           const result = await renameCategory(change.oldName, change.newName, {
             wikidataQid: change.wikidataQid,

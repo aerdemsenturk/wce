@@ -51,6 +51,29 @@ export interface Depict {
   statementId: string; // Wikibase claim GUID, e.g. "M123$xxxxxxxx-..."
 }
 
+/** One value of a curated statement on a category's Wikidata item. */
+export interface WikidataStatementValue {
+  /** Claim GUID (e.g. "Q42$xxxx-..."), or "pending" for a queued add. */
+  statementId: string;
+  kind: "item" | "other";
+  /** Q-id of the value, for `kind === "item"`. */
+  itemId: string | null;
+  /** Resolved item label, or a formatted display string for `kind === "other"`. */
+  label: string | null;
+}
+
+/** All values of one property on a category's Wikidata item. */
+export interface WikidataPropertyStatements {
+  property: string; // "P31"
+  values: WikidataStatementValue[];
+}
+
+/** Curated-property statements read off a category's Wikidata item. */
+export interface WikidataItemStatements {
+  qid: string;
+  properties: WikidataPropertyStatements[];
+}
+
 export interface FileDetail {
   pageid: number;
   title: string; // "File:Foo.jpg"

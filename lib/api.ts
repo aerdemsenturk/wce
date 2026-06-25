@@ -8,6 +8,7 @@ import type {
   Subcategory,
   UploadItem,
   UserProfile,
+  WikidataItemStatements,
 } from "./types";
 
 // Client-side helpers that call our own server proxy under /api/commons.
@@ -372,6 +373,51 @@ export async function searchWikidataItems(
     results: { id: string; label: string; description: string | null }[];
   };
   return data.results;
+}
+
+/** Read the curated statements off a category's Wikidata item. */
+export async function fetchWikidataStatements(
+  qid: string,
+  lang: string,
+): Promise<WikidataItemStatements> {
+  const params = new URLSearchParams({ qid, lang });
+  const res = await fetch(`/api/wikidata/statements?${params}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `wikidataStatements ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Add an item-valued statement to a Wikidata item (queued write path). */
+export async function addWikidataStatement(
+  qid: string,
+  property: string,
+  valueQid: string,
+): Promise<{ statementId: string }> {
+  const res = await fetch("/api/wikidata/statements", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "add", qid, property, valueQid }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `addWikidataStatement ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Remove a Wikidata statement by its claim GUID (queued write path). */
+export async function removeWikidataStatement(statementId: string): Promise<void> {
+  const res = await fetch("/api/wikidata/statements", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "remove", statementId }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `removeWikidataStatement ${res.status}`);
+  }
 }
 
 /** Move a file or subcategory's parent category (drag-and-drop write path). */

@@ -10,6 +10,8 @@ import type {
   Depict,
   LangText,
   Subcategory,
+  WikidataPropertyStatements,
+  WikidataStatementValue,
 } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
 
@@ -115,6 +117,28 @@ export interface NominateDeletionChange {
   label: string;
 }
 
+export interface AddWikidataStatementChange {
+  id: string;
+  type: "addWikidataStatement";
+  qid: string; // the category's Wikidata item, e.g. "Q42"
+  category: string; // for the publish label / display only
+  property: string; // "P31"
+  valueQid: string; // the item-valued statement's value, e.g. "Q5"
+  valueLabel: string | null;
+  label: string;
+}
+
+export interface RemoveWikidataStatementChange {
+  id: string;
+  type: "removeWikidataStatement";
+  qid: string;
+  category: string;
+  property: string;
+  statementId: string; // real claim GUID being removed
+  valueLabel: string | null;
+  label: string;
+}
+
 export type PendingChange =
   | DescriptionChange
   | MoveChange
@@ -126,7 +150,9 @@ export type PendingChange =
   | RemoveDepictChange
   | LocationChange
   | RemoveLocationChange
-  | NominateDeletionChange;
+  | NominateDeletionChange
+  | AddWikidataStatementChange
+  | RemoveWikidataStatementChange;
 
 /** Whether `fileTitle` has a not-yet-published deletion nomination queued. */
 export function overlayDeletionNomination(
@@ -400,6 +426,49 @@ export function overlayDepicts(
           ...result,
           { id: change.qid, label: change.depictLabel, statementId: "pending" },
         ];
+      }
+    }
+  }
+  return result;
+}
+
+/** A Wikidata item's curated statements, adjusted for not-yet-published
+ * add/remove changes scoped to that item (`qid`). Added statements carry a
+ * synthetic "pending" statement id until publish returns the real GUID. */
+export function overlayWikidataStatements(
+  qid: string,
+  base: WikidataPropertyStatements[],
+  changes: PendingChange[],
+): WikidataPropertyStatements[] {
+  let result: WikidataPropertyStatements[] = base.map((group) => ({
+    property: group.property,
+    values: [...group.values],
+  }));
+
+  for (const change of changes) {
+    if (change.type === "removeWikidataStatement" && change.qid === qid) {
+      result = result
+        .map((group) => ({
+          ...group,
+          values: group.values.filter((v) => v.statementId !== change.statementId),
+        }))
+        .filter((group) => group.values.length > 0);
+    }
+    if (change.type === "addWikidataStatement" && change.qid === qid) {
+      const synthetic: WikidataStatementValue = {
+        statementId: "pending",
+        kind: "item",
+        itemId: change.valueQid,
+        label: change.valueLabel,
+      };
+      const group = result.find((g) => g.property === change.property);
+      if (group) {
+        // Skip if the item is already a value (avoids a dupe chip on re-open).
+        if (!group.values.some((v) => v.itemId === change.valueQid)) {
+          group.values = [...group.values, synthetic];
+        }
+      } else {
+        result = [...result, { property: change.property, values: [synthetic] }];
       }
     }
   }
