@@ -76,7 +76,10 @@ export default function Header() {
           changes={pendingChanges}
           publishing={publishing}
           onClose={() => setConfirmOpen(false)}
-          onConfirm={() => void publishAll()}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            void publishAll();
+          }}
         />
       )}
 
