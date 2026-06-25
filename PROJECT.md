@@ -1,79 +1,91 @@
 # Wikimedia Commons Editor (WCE)
 
-A web-based interface for browsing Wikimedia Commons categories and file metadata —
-built for small editorial teams working with cultural heritage content.
+A web-based browser **and lightweight editor** for Wikimedia Commons categories and file
+metadata — built for small editorial teams working with cultural heritage content.
 
-v1 focuses entirely on navigation and data visualization. All write operations
-(editing, uploading, OAuth login) are deferred to v2, pending Wikimedia OAuth
-application approval.
+v1 was navigation/visualization only. **This is v2:** editing is in scope (descriptions,
+categories, depicts, location, uploads, drag-and-drop recategorization, category create/rename)
+gated behind a single owner-only OAuth 2.0 access token — there is no login flow or multi-user
+auth. Without `WIKIMEDIA_OAUTH_ACCESS_TOKEN` set, the app still works as a read-only browser;
+write endpoints return a disabled error instead of calling Commons.
 
 ---
 
-## Build status (v1)
+## Build status
 
 - [x] Project scaffold — Next.js 16 (App Router, `output: standalone`), Tailwind v4, React 19
 - [x] i18n — next-intl 4 **without** locale routing (cookie-based TR/EN toggle)
-- [x] Layout shell — Header (logo, search, v2 badge, lang toggle), Sidebar, main area
-- [x] Read-only MediaWiki client (`lib/mediawiki.ts`) + server proxy (`/api/commons/category`)
+- [x] Layout shell — Header (logo, search, lang toggle, user menu), Sidebar, main area
+- [x] MediaWiki client (`lib/mediawiki.ts`) + server proxy routes (reads **and** writes)
 - [x] Category browser — sidebar tree (lazy subcat load + file counts), breadcrumb, Wikidata badge
-- [x] File grid — cards, status dots, filter/sort bar, responsive columns (2 → up to 12)
+- [x] Category header — Wikidata description, rename, sitelink edit/clear, create-subcategory
+- [x] Recent + favorite categories (localStorage-backed shortcuts)
+- [x] File grid — cards, status dots, filter/sort bar, responsive columns, cover/preview thumbs
 - [x] Resizable left/right sidebars (drag handle, width persisted to localStorage)
-- [x] File detail panel — multilingual descriptions, date/author/license, clickable categories, coords, Edit-on-Commons links
-- [x] Location — **MapLibre GL** map (keyless OSM raster) + Nominatim reverse geocode (sessionStorage cache)
+- [x] File detail panel — multilingual descriptions, date/author/license, clickable categories, coords
+- [x] Location — MapLibre GL map (keyless OSM raster) + Nominatim reverse geocode (sessionStorage cache)
 - [x] Depicts (P180) viewer — SDC `wbgetentities` on the M-id, labels resolved via Wikidata
 - [x] Search — CirrusSearch `incategory:` scoped, results in the same grid
+- [x] **Editing** — description, add/remove category, add/remove depict, location set/clear
+- [x] **Drag-and-drop recategorization** — files and subcategories, sort keys preserved
+- [x] **Multi-select** — bulk category edit + create-category-from-selection
+- [x] **Category create / rename** — keeps the linked Wikidata sitelink in sync
+- [x] **Uploads** — new files to Commons with EXIF-prefilled metadata
+- [x] **Deletion nomination** — nominate a file for deletion from the detail panel
+- [x] **Batch-then-publish** — local pending-change queue, overlay preview, per-change publish results
+- [x] **Activity feed** — recent edits/uploads view
 
-**v1 feature-complete.** `next build` passes (types + lint clean).
+> Grid is container-responsive: cards stay ≥160px wide and the column count drops as the main
+> area / sidebars resize, rather than shrinking cards. Both sidebars are drag-resizable (width
+> persisted; double-click resets).
 
-> Grid is container-responsive: cards stay ≥160px wide and the column count
-> drops (max 6) as the main area / sidebars resize, rather than shrinking cards.
-> Both sidebars are drag-resizable (width persisted; double-click resets).
-
-> **Note on stack vs. original brief:** the brief targeted Next.js 14 + Tailwind v3,
-> but the current toolchain installs Next.js 16 + Tailwind v4 + React 19 (all forward
-> compatible). Tailwind v4 uses CSS-based config (no `tailwind.config.js`).
-> Per `AGENTS.md`, consult `node_modules/next/dist/docs/` before using Next APIs —
-> notably `params`/`cookies()`/`headers()` are now async, and middleware is `proxy`.
+> **Note on stack vs. original brief:** the brief targeted Next.js 14 + Tailwind v3, but the
+> current toolchain installs Next.js 16 + Tailwind v4 + React 19. Tailwind v4 uses CSS-based
+> config (no `tailwind.config.js`). Per `AGENTS.md`, consult `node_modules/next/dist/docs/`
+> before using Next APIs — notably `params`/`cookies()`/`headers()` are now async, and middleware
+> is `proxy`.
 
 ---
 
 ## Tech stack
 
 - **Framework:** Next.js 16 (App Router), `output: 'standalone'`
-- **Styling:** Tailwind CSS v4
-- **State:** React state + localStorage/sessionStorage (no backend database)
-- **APIs:** MediaWiki Action API (read-only), Commons REST API v1, Wikidata API (read-only)
+- **Styling:** Tailwind CSS v4 (CSS-based theme config, no `tailwind.config.js`)
+- **State:** React context + localStorage/sessionStorage (no backend database)
+- **APIs:** MediaWiki Action API (read + write), Commons upload, Wikidata API (read + write for sitelinks/depicts)
 - **i18n:** `next-intl` — Turkish (tr, default) and English (en), cookie-based toggle (no locale in URL)
 - **Map:** MapLibre GL JS + OpenStreetMap raster tiles (no API key)
+- **EXIF:** `exifr` for upload metadata pre-fill
+- **Auth:** Wikimedia OAuth 2.0 (owner-only consumer — single-account editing, no login flow)
 - **Deploy:** Hetzner VPS, CloudPanel Node.js app, subdomain TBD
 
-No authentication, no server-side secrets, no `.env` needed for v1.
+Editing requires `WIKIMEDIA_OAUTH_ACCESS_TOKEN`; read-only browsing needs no environment config.
 
 ---
 
-## v1 features (read-only)
+## Edit model
 
-1. **Category browser** — root input (saved to localStorage), lazy-loaded subcategory
-   tree with file counts, breadcrumb navigation, Wikidata item badge for the current category.
-2. **File grid** — responsive grid; thumbnail + filename + size + upload year; per-file
-   status dots (description / date / author / license / location); filter + sort bar.
-3. **File detail panel** — large thumbnail, multilingual description, date, author, license,
-   categories (clickable), location, depicts; "Edit on Commons" / "Edit structured data"
-   external links (v1 bridge, no in-app editing).
-4. **Location** — `{{Location}}` / Wikidata coordinates → lat/lon + Nominatim place name +
-   embedded Leaflet map.
-5. **Depicts (P180)** — read Commons Structured Data via `wbgetentities` on the file M-id.
-6. **Search** — Commons file search within the current category context.
+All edits flow through a **batch-then-publish** queue (`lib/pendingChanges.ts`) rather than being
+written immediately. The UI queues typed `PendingChange` objects and applies them as overlays on
+top of server-fetched data, so the tree/grid/detail views reflect pending edits before publish.
+The current change types are:
+
+`description`, `move` (file/category), `createCategory`, `removeCategory`, `rename`,
+`addCategory`, `addDepict`, `removeDepict`, `location`, `removeLocation`, `nominateDeletion`.
+
+Publishing (`components/browser/PublishConfirmModal.tsx` → `PublishResultsModal.tsx`) replays the
+queue through `lib/api.ts`'s write helpers and reports per-change success/failure.
 
 ---
 
 ## Data sources
 
 - **MediaWiki Action API** — `https://commons.wikimedia.org/w/api.php`
-  (subcats, files, wikitext, `wikibase_item` pageprop, `imageinfo`+`extmetadata`, categories).
-  Called **server-side** from route handlers so we can send a proper `User-Agent`
-  (Wikimedia requires it).
-- **Wikidata API** — `https://www.wikidata.org/w/api.php` (`wbgetentities` for labels + depicts).
+  (subcats, files, wikitext, `wikibase_item` pageprop, `imageinfo`+`extmetadata`, categories,
+  `action=edit`, uploads, SDC). Called **server-side** from route handlers so a proper
+  `User-Agent` is always sent and the OAuth bearer/CSRF tokens stay off the client.
+- **Wikidata API** — `https://www.wikidata.org/w/api.php` (`wbgetentities` for labels + depicts,
+  sitelink read/write for category ↔ Wikidata linkage).
 - **Nominatim** — `https://nominatim.openstreetmap.org/reverse` (reverse geocode,
   cached in sessionStorage keyed by `lat,lon`).
 
@@ -87,20 +99,33 @@ wce/
 │   ├── layout.tsx                  # Root layout, NextIntlClientProvider, <html lang>
 │   ├── page.tsx                    # Home — BrowserProvider + Header + Sidebar + main
 │   ├── globals.css                 # Tailwind v4 + theme tokens
-│   └── api/commons/
-│       └── category/route.ts       # Read-only proxy: ?op=children|files
+│   └── api/
+│       ├── commons/{category,file,search,upload,user}/route.ts  # MediaWiki proxy (read + write)
+│       ├── geocode/reverse/route.ts                             # Nominatim proxy
+│       └── wikidata/search/route.ts                             # Wikidata search proxy
 ├── components/
-│   ├── browser/BrowserProvider.tsx # Client context: root, path, current category
-│   ├── layout/{Header,Sidebar,LanguageToggle}.tsx
-│   └── category/{CategoryTree,CategoryNode,Breadcrumb,WikidataBadge}.tsx
+│   ├── browser/      # BrowserProvider (nav state, selection, pending-changes queue), publish modals
+│   ├── category/      # Sidebar tree, breadcrumb, Wikidata badge, header, recents/favorites
+│   ├── files/         # Grid, filter bar, selection toolbar, bulk-edit & create-category modals
+│   ├── detail/         # Detail panel, description/location/depicts editing, deletion nomination, map
+│   ├── upload/         # Upload modal, drop zone, EXIF-driven preview
+│   ├── activity/       # Activity feed and uploads view
+│   ├── layout/         # Header, sidebar shell, language toggle, user menu
+│   └── ui/             # Shared inputs, pickers, toast
 ├── i18n/
 │   ├── config.ts                   # locales, defaultLocale, LOCALE_COOKIE
 │   ├── request.ts                  # getRequestConfig (reads cookie)
 │   └── locale.ts                   # 'use server' setLocale action
 ├── lib/
-│   ├── mediawiki.ts                # Read-only MediaWiki client (server-side)
-│   ├── category.ts                 # Pure name helpers (client+server safe)
-│   ├── api.ts                      # Client fetch helpers + in-memory cache
+│   ├── mediawiki.ts                # Server-side MediaWiki/Wikidata client (reads + writes)
+│   ├── wikitext.ts                 # {{Information}} / {{Location}} parsing + targeted patch helpers
+│   ├── api.ts                      # Client fetch helpers + in-memory caches + write helpers
+│   ├── pendingChanges.ts           # Local edit queue + overlay helpers before publish
+│   ├── dnd.ts                      # Drag-and-drop payload helpers
+│   ├── exif.ts                     # EXIF extraction for upload metadata pre-fill
+│   ├── activity.ts                 # Recent edits/uploads activity log
+│   ├── recentCategories.ts / favoriteCategories.ts  # localStorage category shortcuts
+│   ├── nominatim.ts / format.ts / category.ts        # geocode, formatting, name helpers
 │   └── types.ts                    # Shared domain types
 ├── messages/{tr,en}.json           # next-intl message catalogs
 └── next.config.js                  # output: standalone + next-intl plugin
@@ -108,8 +133,11 @@ wce/
 
 ---
 
-## v2 scope (pending OAuth approval)
+## Possible next steps
 
-Wikimedia OAuth 2.0 login (scopes `basic`, `editpage`, `uploadfile`); edit metadata /
-categories / location / depicts via `action=edit` + Wikidata write APIs; bulk operations;
-upload with EXIF pre-fill. See `OAUTH_APPLICATION.md` when ready to submit.
+- **Tests** — no test suite yet; `lib/wikitext.ts` patch helpers and the pending-change overlay
+  logic are the highest-value, lowest-risk candidates for unit tests.
+- **Remaining `{{Information}}` fields** — author/date/license are read-only; only description is
+  editable. These are the status dots that can't yet be cleared from the UI.
+- **Publish robustness** — clearer partial-failure recovery / retry after a mixed publish result.
+- **Editorial speed** — keyboard shortcuts for grid navigation and quick category assignment.

@@ -10,7 +10,10 @@ read-mostly proxy over the MediaWiki and Wikidata APIs.
 ## Features
 
 - **Category browser** — lazy-loaded sidebar tree with subcategory/file counts, breadcrumb
-  navigation, and a Wikidata item badge for the current category.
+  navigation, a Wikidata item badge for the current category, plus recent and favorite category
+  shortcuts.
+- **Category header** — current category's Wikidata description, with actions to rename the
+  category, edit/clear its Wikidata sitelink, and create a subcategory.
 - **File grid** — responsive card grid with thumbnail, filename, size, upload year, per-file
   status indicators (description / date / author / license / location), and a filter/sort bar.
 - **File detail panel** — multilingual description (parsed from the `{{Information}}`
@@ -20,8 +23,15 @@ read-mostly proxy over the MediaWiki and Wikidata APIs.
   statements directly from the UI; changes are queued and published as real edits to Commons.
 - **Drag-and-drop recategorization** — drag a file or subcategory onto another category to move
   it (removes the old `[[Category:...]]`, adds the new one, preserves sort keys).
-- **Multi-select → merge into new category** — select multiple files/subcategories and create a
-  new Commons category page from the selection in one step.
+- **Multi-select bulk actions** — select multiple files/subcategories to bulk-edit categories or
+  create a new Commons category page from the selection in one step.
+- **Category create / rename** — create categories from a selection and rename existing
+  categories, keeping the linked Wikidata sitelink in sync.
+- **Uploads** — upload new files to Commons with metadata pre-filled from EXIF (date, location).
+- **Deletion nomination** — nominate a file for deletion from the detail panel.
+- **Batch-then-publish** — all edits are queued locally as typed pending changes and previewed in
+  the tree/grid/detail views, then published together with per-change success/failure reporting.
+- **Activity feed** — review your recent edits and uploads in a dedicated activity view.
 - **Location** — reads `{{Location}}` wikitext and Wikidata coordinates, shows them on a
   keyless MapLibre GL / OpenStreetMap map, with reverse geocoding via Nominatim. Coordinates are
   editable from the same panel.
@@ -79,22 +89,28 @@ simply disabled.
 ```
 wce/
 ├── app/
-│   ├── api/commons/{category,file,search}/route.ts   # MediaWiki proxy routes
+│   ├── api/commons/{category,file,search,upload,user}/route.ts  # MediaWiki proxy routes
 │   ├── api/geocode/reverse/route.ts                  # Nominatim proxy
 │   └── api/wikidata/search/route.ts                   # Wikidata search proxy
 ├── components/
-│   ├── browser/      # BrowserProvider (nav state, selection, pending-changes queue)
-│   ├── category/      # Sidebar tree, breadcrumb, Wikidata badge
-│   ├── files/         # File/category grid, filter bar, create-category modal
-│   ├── detail/         # File detail panel, description/location/depicts editing, map
-│   ├── layout/         # Header, sidebar shell, language toggle
+│   ├── browser/      # BrowserProvider (nav state, selection, pending-changes queue), publish modals
+│   ├── category/      # Sidebar tree, breadcrumb, Wikidata badge, header, recents/favorites
+│   ├── files/         # File/category grid, filter bar, selection toolbar, bulk-edit & create-category modals
+│   ├── detail/         # File detail panel, description/location/depicts editing, deletion nomination, map
+│   ├── upload/         # Upload modal, drop zone, EXIF-driven preview
+│   ├── activity/       # Activity feed and uploads view
+│   ├── layout/         # Header, sidebar shell, language toggle, user menu
 │   └── ui/             # Shared inputs, pickers, toast
 ├── lib/
 │   ├── mediawiki.ts    # Server-side MediaWiki/Wikidata client (reads + writes)
 │   ├── wikitext.ts     # {{Information}} / {{Location}} parsing + targeted patch helpers
 │   ├── api.ts          # Client fetch helpers + in-memory caches
 │   ├── dnd.ts           # Drag-and-drop payload helpers
-│   ├── pendingChanges.ts # Local edit queue / undo-redo before publish
+│   ├── pendingChanges.ts # Local edit queue / overlay helpers before publish
+│   ├── exif.ts          # EXIF extraction for upload metadata pre-fill
+│   ├── activity.ts      # Recent edits/uploads activity log
+│   ├── recentCategories.ts / favoriteCategories.ts  # localStorage-backed category shortcuts
+│   ├── nominatim.ts / format.ts / category.ts        # geocode, formatting, name helpers
 │   └── types.ts        # Shared domain types
 ├── i18n/                # next-intl config, cookie-based locale
 └── messages/{tr,en}.json

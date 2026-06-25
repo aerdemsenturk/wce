@@ -11,7 +11,10 @@ arayüz üzerinden.
 ## Özellikler
 
 - **Kategori gezgini** — alt kategori/dosya sayılarıyla birlikte lazy-load edilen kenar çubuğu
-  ağacı, breadcrumb navigasyonu ve geçerli kategori için Wikidata öğe rozeti.
+  ağacı, breadcrumb navigasyonu, geçerli kategori için Wikidata öğe rozeti ve son/favori kategori
+  kısayolları.
+- **Kategori başlığı** — geçerli kategorinin Wikidata açıklaması; kategoriyi yeniden adlandırma,
+  Wikidata sitelink'ini düzenleme/temizleme ve alt kategori oluşturma eylemleriyle birlikte.
 - **Dosya grid'i** — küçük resim, dosya adı, boyut, yükleme yılı içeren responsive kart grid'i;
   her dosya için durum göstergeleri (açıklama / tarih / yazar / lisans / konum) ve bir
   filtre/sıralama çubuğu.
@@ -23,8 +26,18 @@ arayüz üzerinden.
 - **Sürükle-bırak ile yeniden kategorilendirme** — bir dosyayı veya alt kategoriyi başka bir
   kategorinin üzerine sürükleyerek taşıyın (eski `[[Category:...]]` kaldırılır, yenisi eklenir,
   sıralama anahtarları korunur).
-- **Çoklu seçim → yeni kategoride birleştirme** — birden fazla dosya/alt kategori seçip seçimden
-  tek adımda yeni bir Commons kategori sayfası oluşturun.
+- **Çoklu seçim ile toplu işlemler** — birden fazla dosya/alt kategori seçip kategorileri toplu
+  düzenleyin veya seçimden tek adımda yeni bir Commons kategori sayfası oluşturun.
+- **Kategori oluşturma / yeniden adlandırma** — seçimden kategori oluşturun ve mevcut kategorileri
+  yeniden adlandırın; bağlı Wikidata sitelink'i senkron tutulur.
+- **Yükleme** — yeni dosyaları, EXIF'ten ön-doldurulan meta verilerle (tarih, konum) Commons'a
+  yükleyin.
+- **Silme önerisi** — detay panelinden bir dosyayı silinmeye aday gösterin.
+- **Önce-biriktir-sonra-yayınla** — tüm düzenlemeler tipli bekleyen değişiklikler olarak yerelde
+  kuyruğa alınır, ağaç/grid/detay görünümlerinde önizlenir, ardından değişiklik başına başarı/hata
+  raporuyla birlikte topluca yayınlanır.
+- **Aktivite akışı** — son düzenlemelerinizi ve yüklemelerinizi ayrı bir aktivite görünümünde
+  inceleyin.
 - **Konum** — `{{Location}}` wikitext'ini ve Wikidata koordinatlarını okur, anahtar gerektirmeyen
   MapLibre GL / OpenStreetMap haritasında gösterir, Nominatim ile ters coğrafi kodlama yapar.
   Koordinatlar aynı panelden düzenlenebilir.
@@ -82,22 +95,28 @@ yazma işlemleri devre dışı bırakılır.
 ```
 wce/
 ├── app/
-│   ├── api/commons/{category,file,search}/route.ts   # MediaWiki proxy route'ları
+│   ├── api/commons/{category,file,search,upload,user}/route.ts  # MediaWiki proxy route'ları
 │   ├── api/geocode/reverse/route.ts                  # Nominatim proxy
 │   └── api/wikidata/search/route.ts                   # Wikidata arama proxy
 ├── components/
-│   ├── browser/      # BrowserProvider (navigasyon durumu, seçim, bekleyen-değişiklik kuyruğu)
-│   ├── category/      # Kenar çubuğu ağacı, breadcrumb, Wikidata rozeti
-│   ├── files/         # Dosya/kategori grid'i, filtre çubuğu, kategori oluşturma modalı
-│   ├── detail/         # Dosya detay paneli, açıklama/konum/depicts düzenleme, harita
-│   ├── layout/         # Header, kenar çubuğu kabuğu, dil değiştirici
+│   ├── browser/      # BrowserProvider (navigasyon durumu, seçim, bekleyen-değişiklik kuyruğu), yayınlama modalları
+│   ├── category/      # Kenar çubuğu ağacı, breadcrumb, Wikidata rozeti, başlık, son/favori kategoriler
+│   ├── files/         # Dosya/kategori grid'i, filtre çubuğu, seçim araç çubuğu, toplu düzenleme & kategori oluşturma modalları
+│   ├── detail/         # Dosya detay paneli, açıklama/konum/depicts düzenleme, silme önerisi, harita
+│   ├── upload/         # Yükleme modalı, bırakma alanı, EXIF tabanlı önizleme
+│   ├── activity/       # Aktivite akışı ve yüklemeler görünümü
+│   ├── layout/         # Header, kenar çubuğu kabuğu, dil değiştirici, kullanıcı menüsü
 │   └── ui/             # Paylaşılan input'lar, picker'lar, toast
 ├── lib/
 │   ├── mediawiki.ts    # Sunucu tarafı MediaWiki/Wikidata istemcisi (okuma + yazma)
 │   ├── wikitext.ts     # {{Information}} / {{Location}} ayrıştırma + hedefli yama yardımcıları
 │   ├── api.ts          # İstemci fetch yardımcıları + bellek içi cache'ler
 │   ├── dnd.ts           # Sürükle-bırak payload yardımcıları
-│   ├── pendingChanges.ts # Yayınlamadan önceki yerel düzenleme kuyruğu / undo-redo
+│   ├── pendingChanges.ts # Yayınlamadan önceki yerel düzenleme kuyruğu / overlay yardımcıları
+│   ├── exif.ts          # Yükleme meta verisi ön-doldurması için EXIF çıkarımı
+│   ├── activity.ts      # Son düzenleme/yükleme aktivite günlüğü
+│   ├── recentCategories.ts / favoriteCategories.ts  # localStorage tabanlı kategori kısayolları
+│   ├── nominatim.ts / format.ts / category.ts        # geocode, biçimlendirme, isim yardımcıları
 │   └── types.ts        # Paylaşılan domain tipleri
 ├── i18n/                # next-intl yapılandırması, çerez tabanlı locale
 └── messages/{tr,en}.json
