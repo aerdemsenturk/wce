@@ -695,6 +695,7 @@ export async function addDepict(
   )) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
 
   if (data.error) {
+    console.error("addDepict wbcreateclaim error:", JSON.stringify(data.error));
     throw new Error(data.error.info ?? data.error.code ?? "Could not add depicts statement");
   }
   const statementId = data.claim?.id;
@@ -894,6 +895,7 @@ export async function addWikidataItemStatement(
   )) as { error?: { code?: string; info?: string }; claim?: { id?: string } };
 
   if (data.error) {
+    console.error("addWikidataItemStatement wbcreateclaim error:", JSON.stringify(data.error));
     throw new Error(data.error.info ?? data.error.code ?? "Could not add Wikidata statement");
   }
   const statementId = data.claim?.id;
