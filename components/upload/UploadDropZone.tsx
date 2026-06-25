@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useBrowser } from "../browser/BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import UploadModal, { MAX_UPLOAD_FILES } from "./UploadModal";
 
 /** True when the drag carries OS files (an external upload), not one of our
@@ -23,7 +23,7 @@ export default function UploadDropZone({
   children: React.ReactNode;
 }) {
   const t = useTranslations("upload");
-  const { showToast } = useBrowser();
+  const { showToast } = useToast();
   const [over, setOver] = useState(false);
   const [files, setFiles] = useState<File[] | null>(null);
   // dragenter/leave fire for every child crossing; count depth so the overlay

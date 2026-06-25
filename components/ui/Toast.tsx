@@ -1,9 +1,9 @@
 "use client";
 
-import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function Toast() {
-  const { toast } = useBrowser();
+  const { toast } = useToast();
   if (!toast) return null;
 
   return (

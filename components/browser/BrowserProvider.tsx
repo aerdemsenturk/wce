@@ -39,11 +39,6 @@ import {
   removeWikidataStatement,
 } from "@/lib/api";
 
-export interface Toast {
-  message: string;
-  tone: "error" | "success";
-}
-
 export interface PublishResult {
   changeId: string;
   label: string;
@@ -107,8 +102,6 @@ interface BrowserState {
    * relying on cached category data know to refetch. */
   version: number;
   bumpVersion: () => void;
-  toast: Toast | null;
-  showToast: (toast: Toast) => void;
   /** Whether the "merge selection into new category" modal is open. */
   mergeModalOpen: boolean;
   setMergeModalOpen: (open: boolean) => void;
@@ -198,8 +191,6 @@ export default function BrowserProvider({
   const [version, setVersion] = useState(0);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [redoStack, setRedoStack] = useState<PendingChange[]>([]);
   const [publishing, setPublishing] = useState(false);
@@ -534,12 +525,6 @@ export default function BrowserProvider({
 
   const clearPublishResults = useCallback(() => setPublishResults(null), []);
 
-  const showToast = useCallback((next: Toast) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast(next);
-    toastTimer.current = setTimeout(() => setToast(null), 4000);
-  }, []);
-
   const value = useMemo<BrowserState>(
     () => ({
       root,
@@ -572,8 +557,6 @@ export default function BrowserProvider({
       clearSelected,
       version,
       bumpVersion,
-      toast,
-      showToast,
       mergeModalOpen,
       setMergeModalOpen,
       bulkEditModalOpen,
@@ -625,8 +608,6 @@ export default function BrowserProvider({
       clearSelected,
       version,
       bumpVersion,
-      toast,
-      showToast,
       mergeModalOpen,
       bulkEditModalOpen,
       pendingChanges,

@@ -5,6 +5,7 @@ import Breadcrumb from "@/components/category/Breadcrumb";
 import DetailPanel from "@/components/detail/DetailPanel";
 import UploadDropZone from "@/components/upload/UploadDropZone";
 import Toast from "@/components/ui/Toast";
+import ToastProvider from "@/components/ui/ToastProvider";
 import BrowserMainContent from "@/components/browser/BrowserMainContent";
 
 /**
@@ -18,25 +19,27 @@ export default function BrowserApp({
   initialCategory?: string | null;
 }) {
   return (
-    <BrowserProvider initialCategory={initialCategory}>
-      <div className="flex h-dvh flex-col">
-        <Header />
-        <div className="flex min-h-0 flex-1">
-          <SidebarSlot />
+    <ToastProvider>
+      <BrowserProvider initialCategory={initialCategory}>
+        <div className="flex h-dvh flex-col">
+          <Header />
+          <div className="flex min-h-0 flex-1">
+            <SidebarSlot />
 
-          <UploadDropZone>
-            <main className="min-w-0 flex-1 overflow-y-auto">
-              <div className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border-base bg-panel px-6">
-                <Breadcrumb />
-              </div>
-              <BrowserMainContent />
-            </main>
-          </UploadDropZone>
+            <UploadDropZone>
+              <main className="min-w-0 flex-1 overflow-y-auto">
+                <div className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border-base bg-panel px-6">
+                  <Breadcrumb />
+                </div>
+                <BrowserMainContent />
+              </main>
+            </UploadDropZone>
 
-          <DetailPanel />
+            <DetailPanel />
+          </div>
         </div>
-      </div>
-      <Toast />
-    </BrowserProvider>
+        <Toast />
+      </BrowserProvider>
+    </ToastProvider>
   );
 }

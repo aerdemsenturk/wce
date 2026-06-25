@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CategoryFileInfo } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import Modal, { ModalActions } from "@/components/ui/Modal";
 import FormField, { formFieldInputClassName } from "@/components/ui/FormField";
 
@@ -17,7 +18,8 @@ export default function CreateCategoryModal({
   onClose: () => void;
 }) {
   const t = useTranslations("merge");
-  const { path, selectPath, clearSelected, addChange, showToast } = useBrowser();
+  const { path, selectPath, clearSelected, addChange } = useBrowser();
+  const { showToast } = useToast();
 
   const [name, setName] = useState("");
   const [qid, setQid] = useState("");

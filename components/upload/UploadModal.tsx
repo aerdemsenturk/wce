@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import { uploadFileToCommons } from "@/lib/api";
 import { readImageExif } from "@/lib/exif";
 import type { Coordinates } from "@/lib/types";
@@ -102,7 +103,8 @@ export default function UploadModal({
   const t = useTranslations("upload");
   const locale = useLocale();
   const titleId = useId();
-  const { current, showToast, bumpVersion } = useBrowser();
+  const { current, bumpVersion } = useBrowser();
+  const { showToast } = useToast();
 
   // Metadata shared across every file in this batch.
   // Single-owner v2: this is the only account that can publish, so its user

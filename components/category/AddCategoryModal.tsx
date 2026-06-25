@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import Modal, { ModalActions } from "@/components/ui/Modal";
 import FormField from "@/components/ui/FormField";
 import CategoryPicker from "@/components/ui/CategoryPicker";
@@ -16,7 +17,8 @@ export default function AddCategoryModal({
   onClose: () => void;
 }) {
   const t = useTranslations("newCategory");
-  const { addChange, showToast } = useBrowser();
+  const { addChange } = useBrowser();
+  const { showToast } = useToast();
 
   const [name, setName] = useState("");
   const [wikidata, setWikidata] = useState<WikidataPickerValue | null>(null);

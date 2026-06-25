@@ -5,13 +5,15 @@ import { useTranslations } from "next-intl";
 import { readDragPayload, hasDragPayload } from "@/lib/dnd";
 import { stripCategoryPrefix } from "@/lib/category";
 import { useBrowser } from "./BrowserProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 /** Makes any element a drop target that accepts a dragged file or
  * subcategory and queues a move into `toCategory` (not written to Commons
  * until the user hits Publish). */
 export function useCategoryDropTarget(toCategory: string) {
   const t = useTranslations("dnd");
-  const { showToast, addChange, clearSelected } = useBrowser();
+  const { addChange, clearSelected } = useBrowser();
+  const { showToast } = useToast();
   const [isOver, setIsOver] = useState(false);
 
   function onDragOver(e: React.DragEvent) {
