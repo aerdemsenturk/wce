@@ -23,9 +23,7 @@ export default function BrowserMainContent() {
         <div className="sticky top-[5.5rem] z-20">
           <SelectionToolbar />
         </div>
-        <div className="p-6">
-          <FileGrid />
-        </div>
+        <FileGrid />
       </>
     );
   }

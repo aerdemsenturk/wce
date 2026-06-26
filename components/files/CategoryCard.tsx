@@ -53,6 +53,7 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={() => selectPath([...path, subcat.name])}
+      data-no-marquee
       className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
         dragging ? "opacity-50" : ""
       } ${

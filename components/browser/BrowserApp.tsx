@@ -7,6 +7,7 @@ import UploadDropZone from "@/components/upload/UploadDropZone";
 import Toast from "@/components/ui/Toast";
 import ToastProvider from "@/components/ui/ToastProvider";
 import BrowserMainContent from "@/components/browser/BrowserMainContent";
+import MarqueeSelection from "@/components/browser/MarqueeSelection";
 
 /**
  * The whole browser shell. Rendered by both the `/` route (no initial
@@ -28,10 +29,12 @@ export default function BrowserApp({
 
             <UploadDropZone>
               <main className="min-w-0 flex-1 overflow-y-auto">
-                <div className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border-base bg-panel px-6">
-                  <Breadcrumb />
-                </div>
-                <BrowserMainContent />
+                <MarqueeSelection>
+                  <div className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border-base bg-panel px-6">
+                    <Breadcrumb />
+                  </div>
+                  <BrowserMainContent />
+                </MarqueeSelection>
               </main>
             </UploadDropZone>
 
