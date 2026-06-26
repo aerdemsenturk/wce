@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
-import { getCategoryChildrenCached, getCategoryCoverImageCached } from "@/lib/api";
+import {
+  getCategoryChildrenCached,
+  getCategoryCoverImageCached,
+  getCategoryParentsCached,
+} from "@/lib/api";
 import { resolveCategoryName, syntheticChildrenFor } from "@/lib/pendingChanges";
 import { commonsCategoryUrl } from "@/lib/category";
+import type { Subcategory } from "@/lib/types";
 import UploadModal from "@/components/upload/UploadModal";
 import Tooltip from "@/components/ui/Tooltip";
 import SearchBox from "@/components/layout/SearchBox";
@@ -26,12 +31,15 @@ export default function CategoryHeader() {
   const tFilters = useTranslations("filters");
   const locale = useLocale();
   const {
+    root,
     path,
     current,
     version,
     pendingChanges,
     favoriteCategories,
     toggleFavorite,
+    setRoot,
+    setTreeParent,
     filter,
     setFilter,
     sort,
@@ -44,6 +52,59 @@ export default function CategoryHeader() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
   const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null);
+  // Parents are tagged with the category they belong to: when the active
+  // category changes the previous fetch's parents must not be reused for the
+  // new one, or we'd show/promote the wrong parent.
+  const [parentData, setParentData] = useState<{
+    category: string;
+    parents: Subcategory[];
+  } | null>(null);
+
+  // Fetch the parents the active category is filed under on Commons, shown
+  // as badges below that navigate straight to one (a real `setRoot`, not a
+  // tree re-anchor, so this is safe at any depth).
+  useEffect(() => {
+    if (!current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading state before fetching
+      setParentData(null);
+      return;
+    }
+    let active = true;
+    setParentData(null);
+    getCategoryParentsCached(current, locale)
+      .then((data) => {
+        if (active) setParentData({ category: current, parents: data });
+      })
+      .catch(() => {
+        if (active) setParentData({ category: current, parents: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, [current, locale, version]);
+
+  // Only trust parents that were fetched for the current active category.
+  const parents =
+    parentData && parentData.category === current ? parentData.parents : null;
+
+  // Auto-promote the first parent as the sidebar tree's level-1 node — only
+  // while the entered root category is still the active (deepest) one.
+  // Once the user navigates into a subcategory beneath root, root's
+  // ancestors aren't necessarily ancestors of that deeper category, so
+  // re-anchoring the tree on one would produce a path that doesn't reflect
+  // real Commons containment.
+  const atTreeTop = current === root;
+  useEffect(() => {
+    if (parents && parents.length > 0 && atTreeTop) {
+      setTreeParent(parents[0].name);
+    }
+  }, [parents, atTreeTop, setTreeParent]);
+
+  // Exclude the parent already visible immediately above the active category
+  // in the sidebar tree (the one promoted to the top, or the one just
+  // navigated through) — it'd be a redundant "go to parent" badge.
+  const visibleParent = path.length > 1 ? path[path.length - 2] : null;
+  const altParents = (parents ?? []).filter((p) => p.name !== visibleParent);
 
   useEffect(() => {
     let active = true;
@@ -115,6 +176,28 @@ export default function CategoryHeader() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/25 to-black/5" />
           </>
+        )}
+
+        {altParents.length > 0 && (
+          <div className="absolute left-6 top-3 z-10 flex max-w-[calc(100%-3rem)] flex-wrap items-center gap-1">
+            {altParents.map((altParent) => (
+              <button
+                key={altParent.title}
+                type="button"
+                onClick={() => setRoot(altParent.name)}
+                title={tSidebar("goToParent", { name: altParent.name })}
+                className={
+                  "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-xs hover:bg-black/10 " +
+                  (coverUrl
+                    ? "text-white/85 drop-shadow-sm hover:text-white"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800")
+                }
+              >
+                <UpIcon />
+                <span className="truncate">{altParent.name}</span>
+              </button>
+            ))}
+          </div>
         )}
 
         <div className="relative flex h-full items-end justify-between gap-4 px-6 pb-4 pt-10">
@@ -322,6 +405,27 @@ function PencilIcon() {
         d="M11 2l3 3-7.5 7.5L3 13l.5-3.5L11 2Z"
         stroke="currentColor"
         strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function UpIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <path
+        d="M6 9.5V2.5M3 5.5L6 2.5L9 5.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
