@@ -54,14 +54,22 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
       onDrop={onDrop}
       onClick={() => selectPath([...path, subcat.name])}
       data-no-marquee
-      className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-panel text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
+      className={`group relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-amber-50/60 text-left transition-shadow hover:shadow-md active:cursor-grabbing ${
         dragging ? "opacity-50" : ""
       } ${
-        isOver ? "border-slate-900 ring-2 ring-slate-900" : "border-amber-200"
+        isOver
+          ? "border-slate-900 ring-2 ring-slate-900"
+          : "border-amber-100"
       }`}
     >
-      <div className="grid aspect-square w-full grid-cols-2 gap-1 overflow-hidden rounded-t-lg bg-slate-100 p-1">
-        {previewThumbs.length > 0 ? (
+      <div
+        className={
+          previewThumbs.length > 0
+            ? "grid aspect-square w-full grid-cols-2 gap-1 overflow-hidden rounded-t-lg bg-slate-100 p-1"
+            : `relative aspect-square w-full overflow-hidden rounded-t-lg ${pastelFolderColor(subcat.name).bg}`
+        }
+      >
+        {previewThumbs.length > 0 &&
           previewThumbs.map((thumbUrl, index) => (
             <div
               key={index}
@@ -75,12 +83,7 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
                 unoptimized
               />
             </div>
-          ))
-        ) : (
-          <div className="relative flex aspect-square w-full items-center justify-center rounded-md bg-amber-50">
-            <FolderIcon className="text-amber-400" width={32} height={32} />
-          </div>
-        )}
+          ))}
 
         {subcat.wikidata && (
           <span
@@ -116,31 +119,21 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   );
 }
 
-function FolderIcon({
-  width,
-  height,
-  className,
-}: {
-  width: number;
-  height: number;
-  className?: string;
-}) {
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      className={className}
-    >
-      <path
-        d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+const PASTEL_FOLDER_COLORS = [
+  { bg: "bg-rose-50" },
+  { bg: "bg-violet-50" },
+  { bg: "bg-sky-50" },
+  { bg: "bg-emerald-50" },
+  { bg: "bg-orange-50" },
+  { bg: "bg-teal-50" },
+  { bg: "bg-fuchsia-50" },
+  { bg: "bg-lime-50" },
+];
+
+function pastelFolderColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return PASTEL_FOLDER_COLORS[Math.abs(hash) % PASTEL_FOLDER_COLORS.length];
 }
