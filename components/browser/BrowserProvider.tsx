@@ -143,9 +143,13 @@ interface BrowserState {
    * forward) so it's a transient overlay, not a navigable route. */
   contentView: ContentView;
   setContentView: (view: ContentView) => void;
+  /** Username currently shown by the "profile" content view, set via the
+   * header search picking a user result. */
+  profileUser: string | null;
+  setProfileUser: (username: string) => void;
 }
 
-export type ContentView = "category" | "activity" | "uploads";
+export type ContentView = "category" | "activity" | "uploads" | "profile";
 
 const Ctx = createContext<BrowserState | null>(null);
 
@@ -203,6 +207,7 @@ export default function BrowserProvider({
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [contentView, setContentView] = useState<ContentView>("category");
+  const [profileUser, setProfileUserState] = useState<string | null>(null);
 
   // On first mount: load the recently-visited list, then restore the last
   // visited gallery — the most recent entry (or, on a deep link, the linked
@@ -308,6 +313,16 @@ export default function BrowserProvider({
     setSearchState(null);
     setSelected(new Set());
     setContentView("category");
+  }, []);
+
+  const setProfileUser = useCallback((username: string) => {
+    const clean = username.trim();
+    if (!clean) return;
+    setProfileUserState(clean);
+    setSelectedFile(null);
+    setSearchState(null);
+    setSelected(new Set());
+    setContentView("profile");
   }, []);
 
   const selectPath = useCallback((next: string[]) => {
@@ -576,6 +591,8 @@ export default function BrowserProvider({
       confirmedCreations,
       contentView,
       setContentView,
+      profileUser,
+      setProfileUser,
     }),
     [
       root,
@@ -624,6 +641,8 @@ export default function BrowserProvider({
       clearConfirmedWikidata,
       confirmedCreations,
       contentView,
+      profileUser,
+      setProfileUser,
     ],
   );
 

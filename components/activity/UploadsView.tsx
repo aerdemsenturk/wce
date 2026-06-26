@@ -2,21 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { fetchUserUploads } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/activity";
-import type { UploadItem } from "@/lib/types";
+import { fetchUserUploads, fetchPublicUserUploads } from "@/lib/api";
+import { useBrowser } from "@/components/browser/BrowserProvider";
+import type { CategoryFileInfo } from "@/lib/types";
+import FileCard from "@/components/files/FileCard";
 
-/** Every file the connected account has uploaded to Commons, global (not
- * scoped to the currently browsed category), with "load more" pagination. */
-export default function UploadsView() {
+/** Every file the given account has uploaded to Commons, global (not scoped
+ * to the currently browsed category), with "load more" pagination. Renders
+ * the same `FileCard` grid as a category — clicking a file opens the same
+ * detail panel. With no `username`, shows the connected account's own
+ * uploads (from the user menu); with one, shows an arbitrary account's
+ * public uploads (from the header search → user profile view). */
+export default function UploadsView({
+  username,
+  emptyLabel,
+}: {
+  username?: string;
+  emptyLabel?: string;
+}) {
   const t = useTranslations("activity");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const [items, setItems] = useState<UploadItem[] | null>(null);
+  const { selected } = useBrowser();
+  const [items, setItems] = useState<CategoryFileInfo[] | null>(null);
   const [continueToken, setContinueToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
+
+  const fetchPage = (continueToken?: string) =>
+    username
+      ? fetchPublicUserUploads(username, continueToken, locale)
+      : fetchUserUploads(continueToken, locale);
 
   useEffect(() => {
     let active = true;
@@ -24,7 +41,7 @@ export default function UploadsView() {
       setLoading(true);
       setError(false);
       try {
-        const result = await fetchUserUploads();
+        const result = await fetchPage();
         if (!active) return;
         setItems(result.items);
         setContinueToken(result.continueToken);
@@ -38,12 +55,13 @@ export default function UploadsView() {
     return () => {
       active = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch only when the target account or language changes
+  }, [username, locale]);
 
   const loadMore = () => {
     if (!continueToken) return;
     setLoadingMore(true);
-    fetchUserUploads(continueToken)
+    fetchPage(continueToken)
       .then((result) => {
         setItems((prev) => [...(prev ?? []), ...result.items]);
         setContinueToken(result.continueToken);
@@ -59,8 +77,12 @@ export default function UploadsView() {
     return <p className="py-16 text-center text-sm text-red-500">{tc("error")}</p>;
   }
   if (!items || items.length === 0) {
-    return <p className="py-16 text-center text-sm text-slate-400">{t("empty")}</p>;
+    return (
+      <p className="py-16 text-center text-sm text-slate-400">{emptyLabel ?? t("empty")}</p>
+    );
   }
+
+  const selectedFiles = items.filter((f) => selected.has(f.title));
 
   return (
     <div>
@@ -71,34 +93,8 @@ export default function UploadsView() {
             "repeat(auto-fill, minmax(max(100% / 8, min(160px, 100% / 2)), 1fr))",
         }}
       >
-        {items.map((item) => (
-          <a
-            key={item.title}
-            href={item.descriptionUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="group overflow-hidden rounded-md border border-border-base bg-panel"
-          >
-            <div className="aspect-square bg-slate-100">
-              {item.thumbUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- thumbnail URLs are arbitrary Commons hosts, not worth an Image loader config for a low-traffic view
-                <img
-                  src={item.thumbUrl}
-                  alt={item.name}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              )}
-            </div>
-            <div className="p-2">
-              <p className="truncate text-xs font-medium text-slate-700 group-hover:underline">
-                {item.name}
-              </p>
-              <p className="text-xs text-slate-400">
-                {formatRelativeTime(item.timestamp, locale)}
-              </p>
-            </div>
-          </a>
+        {items.map((file) => (
+          <FileCard key={file.pageid} file={file} selectedFiles={selectedFiles} />
         ))}
       </div>
 

@@ -29,6 +29,14 @@
     "empty": "Kayıt bulunamadı",
     "noSummary": "(özet yok)"
   },
+  "userProfile": {
+    "back": "Kategorilere dön",
+    "editCount": "{count, plural, =0 {düzenleme yok} other {# düzenleme}}",
+    "registered": "{date} tarihinde katıldı",
+    "uploadsEmpty": "Yüklenen dosya bulunamadı",
+    "loadMore": "Daha fazla yükle",
+    "notFound": "Bu kullanıcı bulunamadı"
+  },
   "sidebar": {
     "title": "Kategoriler",
     "empty": "Henüz kategori seçilmedi",
@@ -169,7 +177,9 @@
     "noResults": "Sonuç bulunamadı",
     "clearSelection": "Seçimi temizle",
     "wikidataSearchPlaceholder": "Wikidata öğesi ara…",
-    "categorySearchPlaceholder": "Kategori ara…"
+    "categorySearchPlaceholder": "Kategori ara…",
+    "commonsSearchPlaceholder": "Kategori veya kullanıcı ara…",
+    "userResult": "kullanıcı"
   },
   "dnd": {
     "moveQueued": "{target} kategorisine taşınacak (yayınlanmadı)",
