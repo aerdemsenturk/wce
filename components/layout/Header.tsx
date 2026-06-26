@@ -25,8 +25,8 @@ export default function Header() {
   const showConfirm = confirmOpen && !publishResults;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border-base bg-panel px-4">
-      <div className="flex items-center gap-2">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border-base bg-panel px-2 sm:gap-4 sm:px-4">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="text-sm font-semibold text-slate-700 sm:hidden">
           {tApp("name")}
         </span>
@@ -35,18 +35,18 @@ export default function Header() {
         </span>
       </div>
 
-      <div className="mx-auto w-full max-w-md">
+      <div className="mx-auto min-w-0 max-w-md flex-1">
         <CommonsCategorySearch />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <button
           type="button"
           onClick={undo}
           disabled={pendingChanges.length === 0}
           aria-label={t("undo")}
           title={t("undo")}
-          className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
         >
           <UndoIcon />
         </button>
@@ -56,7 +56,7 @@ export default function Header() {
           disabled={redoCount === 0}
           aria-label={t("redo")}
           title={t("redo")}
-          className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
         >
           <RedoIcon />
         </button>
@@ -64,7 +64,7 @@ export default function Header() {
           type="button"
           onClick={() => setConfirmOpen(true)}
           disabled={pendingChanges.length === 0 || publishing}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+          className="shrink-0 rounded-md bg-slate-900 px-2 py-1.5 text-xs font-medium text-white disabled:opacity-40 sm:px-3"
         >
           {publishing ? t("publishing") : t("publish", { count: pendingChanges.length })}
         </button>

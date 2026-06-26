@@ -231,7 +231,7 @@ export default function CategoryHeader() {
       {/* Detaches from the cover banner above (which scrolls away with the
           page) and sticks just below the breadcrumb bar, so the actions
           stay reachable while browsing a long file grid. */}
-      <div className="sticky top-11 z-20 flex h-11 items-center justify-between gap-4 border-b border-border-base bg-panel px-6">
+      <div className="sticky top-11 z-20 flex h-11 items-center justify-between gap-2 border-b border-border-base bg-panel px-3 sm:gap-4 sm:px-6">
         <div className="flex shrink-0 items-center gap-0.5">
           <IconButton onClick={() => setEditOpen(true)} label={t("edit")}>
             <PencilIcon />
@@ -263,41 +263,61 @@ export default function CategoryHeader() {
           </Tooltip>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterKey)}
-            aria-label={tFilters("filterLabel")}
-            title={tFilters("filterLabel")}
-            className="w-28 rounded-md border border-border-base bg-panel px-1.5 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
-          >
-            <option value="all">
-              {tFilters("all")} ({counts.all})
-            </option>
-            <option value="description">
-              {tFilters("missingDescription")} ({counts.description})
-            </option>
-            <option value="date">
-              {tFilters("missingDate")} ({counts.date})
-            </option>
-            <option value="location">
-              {tFilters("missingLocation")} ({counts.location})
-            </option>
-          </select>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            aria-label={tFilters("sortLabel")}
-            title={tFilters("sortLabel")}
-            className="w-24 rounded-md border border-border-base bg-panel px-1.5 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
-          >
-            <option value="name">{tFilters("sortName")}</option>
-            <option value="date">{tFilters("sortDate")}</option>
-            <option value="missing">{tFilters("sortMissing")}</option>
-          </select>
-          <div className="w-32">
-            <SearchBox />
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          <div className="relative h-7 w-7 sm:h-auto sm:w-28">
+            <span
+              aria-hidden
+              className={
+                "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
+                (filter !== "all" ? "text-amber-500" : "text-slate-400")
+              }
+            >
+              <FilterIcon />
+            </span>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as FilterKey)}
+              aria-label={tFilters("filterLabel")}
+              title={tFilters("filterLabel")}
+              className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
+            >
+              <option value="all">
+                {tFilters("all")} ({counts.all})
+              </option>
+              <option value="description">
+                {tFilters("missingDescription")} ({counts.description})
+              </option>
+              <option value="date">
+                {tFilters("missingDate")} ({counts.date})
+              </option>
+              <option value="location">
+                {tFilters("missingLocation")} ({counts.location})
+              </option>
+            </select>
           </div>
+          <div className="relative h-7 w-7 sm:h-auto sm:w-24">
+            <span
+              aria-hidden
+              className={
+                "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
+                (sort !== "name" ? "text-amber-500" : "text-slate-400")
+              }
+            >
+              <SortIcon />
+            </span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              aria-label={tFilters("sortLabel")}
+              title={tFilters("sortLabel")}
+              className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
+            >
+              <option value="name">{tFilters("sortName")}</option>
+              <option value="date">{tFilters("sortDate")}</option>
+              <option value="missing">{tFilters("sortMissing")}</option>
+            </select>
+          </div>
+          <SearchBox />
         </div>
       </div>
 
@@ -426,6 +446,33 @@ function UpIcon() {
         d="M6 9.5V2.5M3 5.5L6 2.5L9 5.5"
         stroke="currentColor"
         strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2.5 3h11L9.5 8.2v4.3L6.5 14V8.2L2.5 3Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SortIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M4 6.5L7 3.5L10 6.5M4 9.5L7 12.5L10 9.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
