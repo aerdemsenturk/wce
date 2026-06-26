@@ -29,6 +29,14 @@
     "empty": "No records found",
     "noSummary": "(no summary)"
   },
+  "userProfile": {
+    "back": "Back to browsing",
+    "editCount": "{count, plural, =0 {no edits} one {# edit} other {# edits}}",
+    "registered": "Joined {date}",
+    "uploadsEmpty": "No uploads found",
+    "loadMore": "Load more",
+    "notFound": "Could not find this user"
+  },
   "sidebar": {
     "title": "Categories",
     "empty": "No category selected yet",
@@ -169,7 +177,9 @@
     "noResults": "No results found",
     "clearSelection": "Clear selection",
     "wikidataSearchPlaceholder": "Search a Wikidata item…",
-    "categorySearchPlaceholder": "Search a category…"
+    "categorySearchPlaceholder": "Search a category…",
+    "commonsSearchPlaceholder": "Search a category or user…",
+    "userResult": "user"
   },
   "dnd": {
     "moveQueued": "Will move to {target} (not published yet)",

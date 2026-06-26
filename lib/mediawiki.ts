@@ -9,12 +9,12 @@ import type {
   FileDetail,
   FileStatus,
   Subcategory,
-  UploadItem,
   UserProfile,
   WikidataItemStatements,
   WikidataPropertyStatements,
 } from "./types";
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
+import { defaultLocale } from "@/i18n/config";
 import { CURATED_PROPERTIES } from "./wikidataProperties";
 import {
   parseInformation,
@@ -405,66 +405,119 @@ async function getUserActivity(
   return { items, continueToken: data.continue?.uccontinue ?? null };
 }
 
-interface AllImagesImageInfo {
-  timestamp: string;
-  thumburl?: string;
-  url?: string;
-  size?: number;
+/** Every file `username` has uploaded to Commons (global, not scoped to any
+ * one category), in the same `CategoryFileInfo` shape as a category grid —
+ * lets the uploads/profile views reuse `FileCard` and the file detail panel
+ * unchanged. Uses `generator=allimages` + `prop=imageinfo` rather than
+ * `list=allimages` directly — that list module has no width param of its
+ * own (`aiurlwidth` is silently ignored), so it can only ever return the
+ * full-resolution original; only the generator+imageinfo combination
+ * accepts `iiurlwidth` and gives back a real thumbnail. */
+async function getUploadsForUsername(
+  username: string,
+  continueToken: string | undefined,
+  limit: number,
+  lang: string,
+  fetchPage: (params: Params) => Promise<unknown>,
+): Promise<{ items: CategoryFileInfo[]; continueToken: string | null }> {
+  const data = (await fetchPage({
+    action: "query",
+    generator: "allimages",
+    gaiuser: username,
+    gaisort: "timestamp",
+    gaidir: "older",
+    gailimit: limit,
+    gaicontinue: continueToken,
+    ...IMAGEINFO_PROPS,
+    iiextmetadatalanguage: lang,
+  })) as {
+    query?: { pages?: ImageInfoPage[] };
+    continue?: { gaicontinue?: string };
+  };
+  const items = (data.query?.pages ?? []).map(toCategoryFileInfo);
+  return { items, continueToken: data.continue?.gaicontinue ?? null };
 }
 
-interface AllImagesPage {
-  title: string;
-  imageinfo?: AllImagesImageInfo[];
-}
-
-/** Every file the connected account has uploaded to Commons (global, not
- * scoped to any one category). Uses `generator=allimages` + `prop=imageinfo`
- * rather than `list=allimages` directly — that list module has no width
- * param of its own (`aiurlwidth` is silently ignored), so it can only ever
- * return the full-resolution original; only the generator+imageinfo
- * combination accepts `iiurlwidth` and gives back a real thumbnail. */
 async function getUserUploads(
   continueToken?: string,
   limit = 30,
   token?: string,
-): Promise<{ items: UploadItem[]; continueToken: string | null }> {
+  lang = defaultLocale,
+): Promise<{ items: CategoryFileInfo[]; continueToken: string | null }> {
   const username = await resolveUsername(token);
-  const data = (await apiGetAuthed(
-    COMMONS_API,
-    {
-      action: "query",
-      generator: "allimages",
-      gaiuser: username,
-      gaisort: "timestamp",
-      gaidir: "older",
-      gailimit: limit,
-      gaicontinue: continueToken,
-      prop: "imageinfo",
-      iiprop: "timestamp|url|size",
-      iiurlwidth: 160,
-    },
-    token,
-  )) as {
-    query?: { pages?: AllImagesPage[] };
-    continue?: { gaicontinue?: string };
-  };
+  return getUploadsForUsername(username, continueToken, limit, lang, (params) =>
+    apiGetAuthed(COMMONS_API, params, token),
+  );
+}
 
-  const items: UploadItem[] = (data.query?.pages ?? [])
-    .map((page) => ({ title: page.title, info: page.imageinfo?.[0] }))
-    .filter((p): p is { title: string; info: AllImagesImageInfo } => Boolean(p.info))
-    .map(({ title, info }) => ({
-      title,
-      name: title.replace(/^File:/i, ""),
-      timestamp: info.timestamp,
-      thumbUrl: info.thumburl ?? info.url ?? null,
-      descriptionUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(title).replace(/%2F/g, "/")}`,
-      size: info.size ?? null,
-    }));
-
-  return { items, continueToken: data.continue?.gaicontinue ?? null };
+/** Every file an arbitrary account has uploaded to Commons — no login
+ * required, for the user-profile view reached from the header search. */
+export async function getPublicUserUploads(
+  username: string,
+  continueToken?: string,
+  limit = 30,
+  lang = defaultLocale,
+): Promise<{ items: CategoryFileInfo[]; continueToken: string | null }> {
+  return getUploadsForUsername(username, continueToken, limit, lang, (params) =>
+    apiGet(COMMONS_API, params),
+  );
 }
 
 export { getCurrentUser, getUserActivity, getUserUploads };
+
+interface AllUsersEntry {
+  name: string;
+  editcount?: number;
+}
+
+/** Instant-search Commons accounts by username prefix, for the header's
+ * combined category/user search. Unauthenticated — works for any account,
+ * not just the connected one. */
+export async function searchUsers(
+  query: string,
+): Promise<{ username: string; editCount: number | null }[]> {
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    list: "allusers",
+    auprefix: query,
+    aulimit: 8,
+    auprop: "editcount",
+  })) as { query?: { allusers?: AllUsersEntry[] } };
+
+  return (data.query?.allusers ?? []).map((u) => ({
+    username: u.name,
+    editCount: u.editcount ?? null,
+  }));
+}
+
+interface UsersQueryEntry {
+  name?: string;
+  editcount?: number;
+  registration?: string | null;
+  missing?: string;
+}
+
+/** Public profile for an arbitrary Commons account (no login required),
+ * for the user-profile view reached from the header search. */
+export async function getPublicUserProfile(username: string): Promise<UserProfile> {
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    list: "users",
+    ususers: username,
+    usprop: "editcount|registration",
+  })) as { query?: { users?: UsersQueryEntry[] } };
+
+  const info = data.query?.users?.[0];
+  if (!info?.name || info.missing !== undefined) {
+    throw new Error("User not found");
+  }
+  return {
+    username: info.name,
+    editCount: info.editcount ?? 0,
+    registrationDate: info.registration ?? null,
+    profileUrl: `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(info.name)}`,
+  };
+}
 
 interface CategoryMember {
   pageid: number;

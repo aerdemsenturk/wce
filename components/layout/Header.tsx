@@ -6,7 +6,7 @@ import { useBrowser } from "@/components/browser/BrowserProvider";
 import PublishConfirmModal from "@/components/browser/PublishConfirmModal";
 import PublishResultsModal from "@/components/browser/PublishResultsModal";
 import UserMenu from "./UserMenu";
-import CommonsCategorySearch from "./CommonsCategorySearch";
+import CommonsSearch from "./CommonsSearch";
 
 export default function Header() {
   const t = useTranslations("header");
@@ -36,7 +36,7 @@ export default function Header() {
       </div>
 
       <div className="mx-auto min-w-0 max-w-md flex-1">
-        <CommonsCategorySearch />
+        <CommonsSearch />
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">

@@ -7,10 +7,12 @@ import SelectionToolbar from "@/components/files/SelectionToolbar";
 import ActivityViewHeader from "@/components/activity/ActivityViewHeader";
 import ActivityFeed from "@/components/activity/ActivityFeed";
 import UploadsView from "@/components/activity/UploadsView";
+import UserProfileView from "@/components/activity/UserProfileView";
 
-/** Switches the main content area between the normal category grid and the
+/** Switches the main content area between the normal category grid, the
  * connected account's activity-history / uploads view (opened from the
- * header's user menu). The cover image/title/description (CategoryHeader)
+ * header's user menu), and an arbitrary account's profile view (opened from
+ * the header search). The cover image/title/description (CategoryHeader)
  * below the breadcrumb scroll away normally; only its own action-buttons row
  * stays sticky (see its `sticky top-11` row). */
 export default function BrowserMainContent() {
@@ -26,6 +28,10 @@ export default function BrowserMainContent() {
         <FileGrid />
       </>
     );
+  }
+
+  if (contentView === "profile") {
+    return <UserProfileView />;
   }
 
   return (

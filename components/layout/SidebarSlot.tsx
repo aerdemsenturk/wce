@@ -9,7 +9,9 @@ import Sidebar from "@/components/layout/Sidebar";
  * slim collapsed rail — instant, no transition. */
 export default function SidebarSlot() {
   const t = useTranslations("sidebar");
-  const { sidebarCollapsed, toggleSidebar } = useBrowser();
+  const { sidebarCollapsed, toggleSidebar, contentView } = useBrowser();
+
+  if (contentView === "profile") return null;
 
   if (sidebarCollapsed) {
     return (

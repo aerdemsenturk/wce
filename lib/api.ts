@@ -6,7 +6,6 @@ import type {
   Coordinates,
   FileDetail,
   Subcategory,
-  UploadItem,
   UserProfile,
   WikidataItemStatements,
 } from "./types";
@@ -622,8 +621,12 @@ export function getCategoryGridCached(
 
 // --- Connected account: profile, activity history, uploads -----------------
 
-async function getUserOp(op: string, continueToken?: string): Promise<unknown> {
-  const params = new URLSearchParams({ op });
+async function getUserOp(
+  op: string,
+  continueToken?: string,
+  extraParams?: Record<string, string>,
+): Promise<unknown> {
+  const params = new URLSearchParams({ op, ...extraParams });
   if (continueToken) params.set("continue", continueToken);
   const res = await fetch(`/api/commons/user?${params}`);
   if (!res.ok) {
@@ -648,9 +651,46 @@ export async function fetchUserActivity(
 
 export async function fetchUserUploads(
   continueToken?: string,
-): Promise<{ items: UploadItem[]; continueToken: string | null }> {
-  return (await getUserOp("uploads", continueToken)) as {
-    items: UploadItem[];
+  lang?: string,
+): Promise<{ items: CategoryFileInfo[]; continueToken: string | null }> {
+  return (await getUserOp("uploads", continueToken, lang ? { lang } : undefined)) as {
+    items: CategoryFileInfo[];
     continueToken: string | null;
   };
+}
+
+// --- Arbitrary account lookups: header search → user profile view ----------
+// Unlike the helpers above, these never require the visitor to be logged in.
+
+export async function searchUsers(
+  query: string,
+): Promise<{ username: string; editCount: number | null }[]> {
+  const res = await fetch(`/api/commons/user?op=searchUsers&query=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`searchUsers ${res.status}`);
+  const data = (await res.json()) as { results: { username: string; editCount: number | null }[] };
+  return data.results;
+}
+
+export async function fetchPublicUserProfile(username: string): Promise<UserProfile> {
+  const res = await fetch(`/api/commons/user?op=publicProfile&username=${encodeURIComponent(username)}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `publicProfile ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchPublicUserUploads(
+  username: string,
+  continueToken?: string,
+  lang?: string,
+): Promise<{ items: CategoryFileInfo[]; continueToken: string | null }> {
+  const params = new URLSearchParams({ op: "publicUploads", username, ...(lang ? { lang } : {}) });
+  if (continueToken) params.set("continue", continueToken);
+  const res = await fetch(`/api/commons/user?${params}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `publicUploads ${res.status}`);
+  }
+  return res.json();
 }
