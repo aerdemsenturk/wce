@@ -11,6 +11,8 @@ import {
   withRemovedCategory,
   withAddedCategory,
   withDeletionNomination,
+  buildDeletionRequestSubpage,
+  buildUploaderNotice,
   buildNewCategoryWikitext,
   parseWikidataQid,
 } from "./wikitext";
@@ -221,9 +223,31 @@ describe("withAddedCategory", () => {
 });
 
 describe("withDeletionNomination", () => {
-  it("prepends a {{delete}} tag with an escaped reason", () => {
-    const out = withDeletionNomination("[[Category:Cats]]\n", "out of scope | dupe");
-    expect(out).toBe("{{delete|1=out of scope {{!}} dupe}}\n[[Category:Cats]]\n");
+  it("prepends a {{delete}} tag with an escaped reason and the given date", () => {
+    const out = withDeletionNomination(
+      "[[Category:Cats]]\n",
+      "out of scope | dupe",
+      new Date("2026-06-27T12:00:00Z"),
+    );
+    expect(out).toBe(
+      "{{delete|1=out of scope {{!}} dupe|day=27|month=June|year=2026}}\n[[Category:Cats]]\n",
+    );
+  });
+});
+
+describe("buildDeletionRequestSubpage", () => {
+  it("builds a {{subst:delete2}} call with the file and escaped reason", () => {
+    const out = buildDeletionRequestSubpage("File:Foo.jpg", "out of scope | dupe");
+    expect(out).toBe(
+      "{{subst:delete2|image=File:Foo.jpg|reason=out of scope {{!}} dupe --~~~~}}",
+    );
+  });
+});
+
+describe("buildUploaderNotice", () => {
+  it("builds an {{subst:idw}} notice for the given file", () => {
+    const out = buildUploaderNotice("File:Foo.jpg");
+    expect(out).toBe("\n\n== Deletion request notice ==\n{{subst:idw|File:Foo.jpg}} ~~~~");
   });
 });
 

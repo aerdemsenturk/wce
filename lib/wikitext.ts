@@ -460,11 +460,42 @@ export function withRemovedCategory(
   );
 }
 
-/** Tag a page with `{{delete|reason}}`, nominating it for deletion review —
- * inserted at the very top, the conventional place for the tag on Commons. */
-export function withDeletionNomination(wikitext: string, reason: string): string {
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** Tag a page with `{{delete|reason|day=|month=|year=}}`, nominating it for
+ * deletion review — inserted at the very top, the conventional place for the
+ * tag on Commons. The date params (required by the template for categorizing
+ * into the right deletion-request day) are taken from `date`, in UTC since
+ * Commons' deletion logs run on UTC days. */
+export function withDeletionNomination(
+  wikitext: string,
+  reason: string,
+  date: Date = new Date(),
+): string {
   const escaped = escapeForTemplateParam(reason.trim());
-  return `{{delete|1=${escaped}}}\n${wikitext}`;
+  const day = date.getUTCDate();
+  const month = MONTH_NAMES[date.getUTCMonth()];
+  const year = date.getUTCFullYear();
+  return `{{delete|1=${escaped}|day=${day}|month=${month}|year=${year}}}\n${wikitext}`;
+}
+
+/** Content for the deletion-request subpage (`Commons:Deletion
+ * requests/File:Name.jpg`), per COM:DR's manual-listing instructions. The
+ * `{{subst:delete2|...}}` template (and the `~~~~` signature) are expanded by
+ * MediaWiki's pre-save transform when this is posted via `action=edit`, same
+ * as if typed into the wiki's edit form. */
+export function buildDeletionRequestSubpage(fileTitle: string, reason: string): string {
+  const escaped = escapeForTemplateParam(reason.trim());
+  return `{{subst:delete2|image=${fileTitle}|reason=${escaped} --~~~~}}`;
+}
+
+/** Notice appended to the uploader's talk page when their file is nominated
+ * for deletion, per COM:DR's manual-listing instructions. */
+export function buildUploaderNotice(fileTitle: string): string {
+  return `\n\n== Deletion request notice ==\n{{subst:idw|${fileTitle}}} ~~~~`;
 }
 
 /** Add a `[[Category:Name]]` link to a page's wikitext (appended at the end,

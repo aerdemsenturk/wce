@@ -26,6 +26,8 @@ import {
   withRemovedCategory,
   withAddedCategory,
   withDeletionNomination,
+  buildDeletionRequestSubpage,
+  buildUploaderNotice,
   buildNewCategoryWikitext,
   parseWikidataQid,
 } from "./wikitext";
@@ -1568,6 +1570,69 @@ async function postEdit(
   }
 }
 
+/** Thrown by `appendToPage` so callers can branch on the MediaWiki API error
+ * code (e.g. "articleexists") without string-matching the message. */
+class MediaWikiEditError extends Error {
+  constructor(message: string, public code?: string) {
+    super(message);
+  }
+}
+
+/** Append wikitext to a page (creating it if it doesn't exist), used for the
+ * deletion-request subpage, the dated deletion log, and uploader talk-page
+ * notices — all additive edits where there's nothing to clobber, so no
+ * basetimestamp is needed. */
+async function appendToPage(
+  title: string,
+  appendtext: string,
+  summary: string,
+  token?: string,
+  opts?: { createonly?: boolean },
+): Promise<void> {
+  const csrf = await getCsrfToken(COMMONS_API, token);
+  const result = (await apiPost(
+    COMMONS_API,
+    {
+      action: "edit",
+      title,
+      appendtext,
+      summary,
+      token: csrf,
+      ...(opts?.createonly ? { createonly: 1 } : {}),
+    },
+    token,
+  )) as EditResponse;
+
+  if (result.error) {
+    throw new MediaWikiEditError(
+      result.error.info ?? result.error.code ?? "Edit failed",
+      result.error.code,
+    );
+  }
+  if (result.edit?.result !== "Success") {
+    throw new MediaWikiEditError("Edit failed");
+  }
+}
+
+/** Find the username that created a page (its first revision) — for a file
+ * page, that's the uploader, since Commons creates the page on upload. */
+async function getPageCreator(title: string): Promise<string | null> {
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      titles: title,
+      prop: "revisions",
+      rvprop: "user",
+      rvdir: "newer",
+      rvlimit: 1,
+    },
+    { noStore: true },
+  )) as { query?: { pages?: { revisions?: { user?: string }[] }[] } };
+
+  return data.query?.pages?.[0]?.revisions?.[0]?.user ?? null;
+}
+
 /**
  * Patch a single language's description in the {{Information}} template on
  * a file page. Throws if the page doesn't have that template/param in the
@@ -1772,23 +1837,59 @@ export async function uploadFile(
   return { title: `File:${data.upload?.filename ?? filename}` };
 }
 
-/** Tag a file with `{{delete|reason}}`, nominating it for deletion review on
- * Commons (Commons:Deletion requests). Does not create the deletion request
- * subpage itself. */
+/** Nominate a file for deletion review on Commons (Commons:Deletion
+ * requests), following COM:DR's "Listing a request manually" steps: tag the
+ * file, create the deletion-request subpage, list it in the dated deletion
+ * log, and notify the uploader. The last step is best-effort — a missing or
+ * unnotifiable uploader shouldn't block an otherwise-valid request. */
 export async function nominateFileDeletion(
   title: string,
   reason: string,
   token?: string,
 ): Promise<void> {
   const fileTitle = /^File:/i.test(title) ? title : `File:${title}`;
+  const drTitle = `Commons:Deletion requests/${fileTitle}`;
 
   const page = await fetchPageWikitext(fileTitle);
   if (!page) {
     throw new Error("File not found");
   }
 
-  const updated = withDeletionNomination(page.wikitext, reason);
+  const now = new Date();
+  const updated = withDeletionNomination(page.wikitext, reason, now);
   await postEdit(fileTitle, updated, "Nominate for deletion via WCE", page.timestamp, undefined, token);
+
+  try {
+    await appendToPage(
+      drTitle,
+      buildDeletionRequestSubpage(fileTitle, reason),
+      "Creating deletion request via WCE",
+      token,
+      { createonly: true },
+    );
+  } catch (err) {
+    if (err instanceof MediaWikiEditError && err.code === "articleexists") {
+      throw new Error("This file already has an open deletion request.");
+    }
+    throw err;
+  }
+
+  const logTitle = `Commons:Deletion requests/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${String(now.getUTCDate()).padStart(2, "0")}`;
+  await appendToPage(logTitle, `\n{{${drTitle}}}`, "Listing deletion request via WCE", token);
+
+  try {
+    const uploader = await getPageCreator(fileTitle);
+    if (uploader) {
+      await appendToPage(
+        `User talk:${uploader}`,
+        buildUploaderNotice(fileTitle),
+        "Notify uploader of deletion request via WCE",
+        token,
+      );
+    }
+  } catch {
+    // Best-effort — the DR is already valid without the notification.
+  }
 }
 
 /** Remove a file's {{Location}}/{{Object location}} template outright. */
