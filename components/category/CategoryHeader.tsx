@@ -208,7 +208,7 @@ export default function CategoryHeader() {
               className="object-cover"
               aria-hidden
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/25 to-black/5" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-black/40" />
           </>
         )}
 
