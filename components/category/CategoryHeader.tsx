@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { useBrowser } from "@/components/browser/BrowserProvider";
@@ -10,7 +10,7 @@ import {
   getCategoryParentsCached,
 } from "@/lib/api";
 import { resolveCategoryName, syntheticChildrenFor } from "@/lib/pendingChanges";
-import { commonsCategoryUrl } from "@/lib/category";
+import { commonsCategoryUrl, withCategoryPrefix } from "@/lib/category";
 import type { Subcategory } from "@/lib/types";
 import UploadModal from "@/components/upload/UploadModal";
 import Tooltip from "@/components/ui/Tooltip";
@@ -19,6 +19,7 @@ import type { FilterKey, SortKey } from "@/components/files/filters";
 import WikidataBadge from "./WikidataBadge";
 import EditCategoryModal from "./EditCategoryModal";
 import AddCategoryModal from "./AddCategoryModal";
+import AddParentCategoryModal from "./AddParentCategoryModal";
 
 /**
  * Prominent header for the category currently being viewed: a large title, its
@@ -49,6 +50,7 @@ export default function CategoryHeader() {
   const tUpload = useTranslations("upload");
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [addParentOpen, setAddParentOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [description, setDescription] = useState<string | null>(null);
   const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null);
@@ -84,8 +86,40 @@ export default function CategoryHeader() {
   }, [current, locale, version]);
 
   // Only trust parents that were fetched for the current active category.
-  const parents =
+  // Not-yet-published "add parent" changes are overlaid as synthetic entries
+  // (no file/subcat counts yet) so they show up immediately, consistent with
+  // the rest of the batch-then-publish model.
+  const fetchedParents =
     parentData && parentData.category === current ? parentData.parents : null;
+  const pendingParentNames = current
+    ? pendingChanges
+        .filter(
+          (c): c is Extract<typeof c, { type: "addCategory" }> =>
+            c.type === "addCategory" && c.fileTitle === withCategoryPrefix(current),
+        )
+        .map((c) => c.category)
+    : [];
+  const parents = useMemo(
+    () =>
+      fetchedParents
+        ? [
+            ...fetchedParents,
+            ...pendingParentNames
+              .filter((name) => !fetchedParents.some((p) => p.name === name))
+              .map(
+                (name): Subcategory => ({
+                  title: withCategoryPrefix(name),
+                  name,
+                  files: null,
+                  subcats: null,
+                  wikidata: null,
+                }),
+              ),
+          ]
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingParentNames is a new array each render but derived from pendingChanges, already covered
+    [fetchedParents, pendingChanges],
+  );
 
   // Auto-promote the first parent as the sidebar tree's level-1 node — only
   // while the entered root category is still the active (deepest) one.
@@ -237,7 +271,13 @@ export default function CategoryHeader() {
             <PencilIcon />
           </IconButton>
           <IconButton onClick={() => setAddOpen(true)} label={tSidebar("addSubcategory")}>
-            <FolderIcon />
+            <AddSubcategoryIcon />
+          </IconButton>
+          <IconButton
+            onClick={() => setAddParentOpen(true)}
+            label={tSidebar("addParentCategory")}
+          >
+            <AddParentIcon />
           </IconButton>
           <IconButton onClick={() => setUploadOpen(true)} label={tUpload("addFilesTitle")}>
             <PlusIcon />
@@ -333,6 +373,14 @@ export default function CategoryHeader() {
         <AddCategoryModal parentCategory={current} onClose={() => setAddOpen(false)} />
       )}
 
+      {addParentOpen && (
+        <AddParentCategoryModal
+          category={current}
+          existingParents={(parents ?? []).map((p) => p.name)}
+          onClose={() => setAddParentOpen(false)}
+        />
+      )}
+
       {uploadOpen && (
         <UploadModal files={[]} onClose={() => setUploadOpen(false)} />
       )}
@@ -386,19 +434,6 @@ function PlusIcon() {
   );
 }
 
-function FolderIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M2 4.5a1 1 0 0 1 1-1h3l1.2 1.5H13a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-7Z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function StarIcon({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -425,6 +460,36 @@ function PencilIcon() {
         d="M11 2l3 3-7.5 7.5L3 13l.5-3.5L11 2Z"
         stroke="currentColor"
         strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AddParentIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 13V3M4 7L8 3L12 7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Mirror image of AddParentIcon, so the two "add" actions read as a
+ * matched pair. */
+function AddSubcategoryIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 3V13M4 9L8 13L12 9"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
