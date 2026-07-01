@@ -20,7 +20,8 @@ interface TokenResponse {
 // GET /api/auth/callback?code=...&state=...
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const home = new URL("/", request.url);
+  const callbackUrl = process.env.WIKIMEDIA_OAUTH_LOGIN_CALLBACK_URL;
+  const home = callbackUrl ? new URL("/", callbackUrl) : new URL("/", request.url);
 
   const code = searchParams.get("code");
   const state = searchParams.get("state");
