@@ -264,101 +264,108 @@ export default function CategoryHeader() {
 
       {/* Detaches from the cover banner above (which scrolls away with the
           page) and sticks just below the breadcrumb bar, so the actions
-          stay reachable while browsing a long file grid. */}
-      <div className="sticky top-11 z-20 flex h-11 items-center justify-between gap-2 border-b border-border-base bg-panel px-3 sm:gap-4 sm:px-6">
-        <div className="flex shrink-0 items-center gap-0.5">
-          <IconButton onClick={() => setEditOpen(true)} label={t("edit")}>
-            <PencilIcon />
-          </IconButton>
-          <IconButton onClick={() => setAddOpen(true)} label={tSidebar("addSubcategory")}>
-            <AddSubcategoryIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => setAddParentOpen(true)}
-            label={tSidebar("addParentCategory")}
-          >
-            <AddParentIcon />
-          </IconButton>
-          <IconButton onClick={() => setUploadOpen(true)} label={tUpload("addFilesTitle")}>
-            <PlusIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => toggleFavorite(current)}
-            label={tSidebar(isFavorite ? "unfavorite" : "favorite")}
-            pressed={isFavorite}
-            active={isFavorite}
-          >
-            <StarIcon filled={isFavorite} />
-          </IconButton>
-          <Tooltip label={tSidebar("openOnCommons")}>
-            <a
-              href={commonsCategoryUrl(current)}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={tSidebar("openOnCommons")}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          stay reachable while browsing a long file grid. On narrow screens
+          the bar scrolls horizontally itself (edge gradients hint at the
+          overflow, same pattern as the breadcrumb) instead of widening the
+          page. */}
+      <div className="sticky top-11 z-20 border-b border-border-base bg-panel">
+        <div className="no-scrollbar flex h-11 items-center justify-between gap-2 overflow-x-auto px-3 sm:gap-4 sm:px-6">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <IconButton onClick={() => setEditOpen(true)} label={t("edit")}>
+              <PencilIcon />
+            </IconButton>
+            <IconButton onClick={() => setAddOpen(true)} label={tSidebar("addSubcategory")}>
+              <AddSubcategoryIcon />
+            </IconButton>
+            <IconButton
+              onClick={() => setAddParentOpen(true)}
+              label={tSidebar("addParentCategory")}
             >
-              <ExternalIcon />
-            </a>
-          </Tooltip>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-          <div className="relative h-7 w-7 sm:h-auto sm:w-28">
-            <span
-              aria-hidden
-              className={
-                "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
-                (filter !== "all" ? "text-amber-500" : "text-slate-400")
-              }
+              <AddParentIcon />
+            </IconButton>
+            <IconButton onClick={() => setUploadOpen(true)} label={tUpload("addFilesTitle")}>
+              <PlusIcon />
+            </IconButton>
+            <IconButton
+              onClick={() => toggleFavorite(current)}
+              label={tSidebar(isFavorite ? "unfavorite" : "favorite")}
+              pressed={isFavorite}
+              active={isFavorite}
             >
-              <FilterIcon />
-            </span>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as FilterKey)}
-              aria-label={tFilters("filterLabel")}
-              title={tFilters("filterLabel")}
-              className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
-            >
-              <option value="all">
-                {tFilters("all")} ({counts.all})
-              </option>
-              <option value="description">
-                {tFilters("missingDescription")} ({counts.description})
-              </option>
-              <option value="date">
-                {tFilters("missingDate")} ({counts.date})
-              </option>
-              <option value="location">
-                {tFilters("missingLocation")} ({counts.location})
-              </option>
-            </select>
+              <StarIcon filled={isFavorite} />
+            </IconButton>
+            <Tooltip label={tSidebar("openOnCommons")}>
+              <a
+                href={commonsCategoryUrl(current)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={tSidebar("openOnCommons")}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <ExternalIcon />
+              </a>
+            </Tooltip>
           </div>
-          <div className="relative h-7 w-7 sm:h-auto sm:w-24">
-            <span
-              aria-hidden
-              className={
-                "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
-                (sort !== "name" ? "text-amber-500" : "text-slate-400")
-              }
-            >
-              <SortIcon />
-            </span>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              aria-label={tFilters("sortLabel")}
-              title={tFilters("sortLabel")}
-              className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
-            >
-              <option value="name">{tFilters("sortName")}</option>
-              <option value="date">{tFilters("sortDate")}</option>
-              <option value="missing">{tFilters("sortMissing")}</option>
-            </select>
+  
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <div className="relative h-7 w-7 sm:h-auto sm:w-28">
+              <span
+                aria-hidden
+                className={
+                  "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
+                  (filter !== "all" ? "text-amber-500" : "text-slate-400")
+                }
+              >
+                <FilterIcon />
+              </span>
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as FilterKey)}
+                aria-label={tFilters("filterLabel")}
+                title={tFilters("filterLabel")}
+                className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
+              >
+                <option value="all">
+                  {tFilters("all")} ({counts.all})
+                </option>
+                <option value="description">
+                  {tFilters("missingDescription")} ({counts.description})
+                </option>
+                <option value="date">
+                  {tFilters("missingDate")} ({counts.date})
+                </option>
+                <option value="location">
+                  {tFilters("missingLocation")} ({counts.location})
+                </option>
+              </select>
+            </div>
+            <div className="relative h-7 w-7 sm:h-auto sm:w-24">
+              <span
+                aria-hidden
+                className={
+                  "pointer-events-none absolute inset-0 flex items-center justify-center sm:hidden " +
+                  (sort !== "name" ? "text-amber-500" : "text-slate-400")
+                }
+              >
+                <SortIcon />
+              </span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                aria-label={tFilters("sortLabel")}
+                title={tFilters("sortLabel")}
+                className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0 sm:relative sm:inset-auto sm:h-auto sm:w-full sm:cursor-auto sm:rounded-md sm:border sm:border-border-base sm:bg-panel sm:px-1.5 sm:py-1 sm:text-xs sm:text-slate-700 sm:opacity-100 sm:outline-none sm:focus:border-slate-400"
+              >
+                <option value="name">{tFilters("sortName")}</option>
+                <option value="date">{tFilters("sortDate")}</option>
+                <option value="missing">{tFilters("sortMissing")}</option>
+              </select>
+            </div>
+            <SearchBox />
           </div>
-          <SearchBox />
         </div>
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-panel to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent" />
       </div>
 
       {editOpen && (

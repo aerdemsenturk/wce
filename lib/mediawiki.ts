@@ -57,6 +57,31 @@ const RATE_LIMIT_DEFAULT_WAIT_MS = 1_000;
 // Don't let a hostile/huge Retry-After pin a route handler for minutes.
 const RATE_LIMIT_MAX_WAIT_MS = 5_000;
 
+// Wikimedia's API etiquette asks clients to limit parallelism. One category
+// navigation fans out into many upstream calls (children/parents/grid pages/
+// preview mosaics); unbounded, that burst is what trips the per-IP throttle.
+// Cap concurrent upstream calls and queue the rest — a queued request waits
+// for a slot instead of failing.
+const MAX_CONCURRENT_UPSTREAM = 4;
+let activeUpstream = 0;
+const upstreamWaiters: (() => void)[] = [];
+
+async function acquireUpstreamSlot(): Promise<void> {
+  if (activeUpstream < MAX_CONCURRENT_UPSTREAM) {
+    activeUpstream++;
+    return;
+  }
+  // The releasing call hands its slot straight to the next waiter, so the
+  // counter stays as-is when this resolves.
+  await new Promise<void>((resolve) => upstreamWaiters.push(resolve));
+}
+
+function releaseUpstreamSlot(): void {
+  const next = upstreamWaiters.shift();
+  if (next) next();
+  else activeUpstream--;
+}
+
 function retryAfterMs(res: Response): number {
   const header = res.headers.get("retry-after");
   if (header) {
@@ -71,17 +96,24 @@ function retryAfterMs(res: Response): number {
   return RATE_LIMIT_DEFAULT_WAIT_MS;
 }
 
-/** `fetch` that waits out `Retry-After` and retries on 429 responses. */
+/** `fetch` that respects the concurrency cap, waits out `Retry-After`, and
+ * retries on 429 responses. The slot is held through the retry sleeps, which
+ * doubles as a global brake while the API is telling us to slow down. */
 async function fetchWithRateLimitRetry(
   input: string | URL,
   init: RequestInit,
 ): Promise<Response> {
-  let res = await fetch(input, init);
-  for (let attempt = 0; res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
-    res = await fetch(input, init);
+  await acquireUpstreamSlot();
+  try {
+    let res = await fetch(input, init);
+    for (let attempt = 0; res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
+      res = await fetch(input, init);
+    }
+    return res;
+  } finally {
+    releaseUpstreamSlot();
   }
-  return res;
 }
 
 interface ApiGetOptions {
@@ -113,7 +145,11 @@ async function apiGet(
   }
 
   const res = await fetchWithRateLimitRetry(url, {
-    headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT },
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Api-User-Agent": USER_AGENT,
+      ...(await readAuthHeader()),
+    },
     // Cache stable, slow-changing upstream responses briefly to be polite to
     // the API; bypass entirely where freshness matters (see ApiGetOptions).
     cache: options?.noStore ? "no-store" : undefined,
@@ -244,6 +280,24 @@ async function getAccessToken(forceRefresh = false): Promise<string> {
  * the client_credentials path can refresh; a static token can't). */
 function canRefreshToken(): boolean {
   return oauthClientCreds() !== null;
+}
+
+/**
+ * Best-effort Authorization header for read calls. Wikimedia throttles
+ * anonymous api.php traffic far more aggressively than OAuth-authenticated
+ * traffic (anti-scraping measures), so reads ride the owner token whenever
+ * one is configured. A failed mint falls back to anonymous reads instead of
+ * breaking the read-only browser.
+ */
+async function readAuthHeader(): Promise<Record<string, string>> {
+  if (!oauthClientCreds() && !process.env.WIKIMEDIA_OAUTH_ACCESS_TOKEN) {
+    return {};
+  }
+  try {
+    return { Authorization: `Bearer ${await getAccessToken()}` };
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -579,60 +633,76 @@ interface QueryPage {
   pageprops?: { wikibase_item?: string };
 }
 
-/** List direct subcategories of a category (titles only). */
-async function listSubcategoryTitles(category: string): Promise<string[]> {
-  const titles: string[] = [];
-  let cmcontinue: string | undefined;
+/**
+ * Run a paginated `generator=...` query and collect each returned page's
+ * categoryinfo (file/subcat counts) + Wikidata item. The generator delivers
+ * the category listing and its per-page info in one request, replacing the
+ * previous list-titles-then-batch-info round trips. Prop data can arrive
+ * split across continuation batches, so pages are merged by title.
+ */
+async function collectCategoryInfoPages(
+  params: Params,
+): Promise<Map<string, CategoryInfo>> {
+  const result = new Map<string, CategoryInfo>();
+  let cont: Record<string, string> | undefined;
 
   do {
     const data = (await apiGet(
       COMMONS_API,
       {
         action: "query",
-        list: "categorymembers",
-        cmtitle: withCategoryPrefix(category),
-        cmtype: "subcat",
-        cmlimit: 500,
-        cmcontinue,
+        prop: "categoryinfo|pageprops",
+        ppprop: "wikibase_item",
+        ...params,
+        ...(cont ?? {}),
       },
       { noStore: true },
     )) as {
-      query?: { categorymembers?: CategoryMember[] };
-      continue?: { cmcontinue?: string };
+      query?: { pages?: QueryPage[] };
+      continue?: Record<string, string>;
     };
 
-    for (const m of data.query?.categorymembers ?? []) titles.push(m.title);
-    cmcontinue = data.continue?.cmcontinue;
-  } while (cmcontinue);
-
-  return titles;
-}
-
-/** Fetch categoryinfo (file/subcat counts) + Wikidata item for up to 50 category titles. */
-async function fetchCategoryInfo(
-  titles: string[],
-): Promise<Map<string, CategoryInfo>> {
-  const result = new Map<string, CategoryInfo>();
-  if (titles.length === 0) return result;
-
-  // The API accepts up to 50 titles per request.
-  for (let i = 0; i < titles.length; i += 50) {
-    const batch = titles.slice(i, i + 50);
-    const data = (await apiGet(COMMONS_API, {
-      action: "query",
-      titles: batch.join("|"),
-      prop: "categoryinfo|pageprops",
-      ppprop: "wikibase_item",
-    })) as { query?: { pages?: QueryPage[] } };
-
     for (const page of data.query?.pages ?? []) {
+      const existing = result.get(page.title);
       result.set(page.title, {
+        ...existing,
         ...page.categoryinfo,
-        wikibaseItem: page.pageprops?.wikibase_item,
+        wikibaseItem: page.pageprops?.wikibase_item ?? existing?.wikibaseItem,
       });
     }
-  }
+    cont = data.continue;
+  } while (cont);
+
   return result;
+}
+
+/** Resolve Wikidata labels for a collected info map and shape it into the
+ * sorted `Subcategory[]` both the children and parents listings return. */
+async function subcategoriesFromInfo(
+  infoMap: Map<string, CategoryInfo>,
+  lang: string,
+): Promise<Subcategory[]> {
+  const qids = [
+    ...new Set(
+      [...infoMap.values()]
+        .map((info) => info.wikibaseItem)
+        .filter((id): id is string => id != null),
+    ),
+  ];
+  const labels = await fetchWikidataLabels(qids, lang);
+
+  return [...infoMap.entries()]
+    .map(([title, info]) => {
+      const qid = info.wikibaseItem ?? null;
+      return {
+        title,
+        name: stripCategoryPrefix(title),
+        files: info.files ?? null,
+        subcats: info.subcats ?? null,
+        wikidata: qid ? { id: qid, label: labels.get(qid) ?? null } : null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Wikidata item + file count for a single category. */
@@ -1027,35 +1097,17 @@ export async function getCategoryChildren(
 ): Promise<CategoryChildren> {
   const normalized = withCategoryPrefix(category);
 
-  const [subcatTitles, meta] = await Promise.all([
-    listSubcategoryTitles(normalized),
+  const [infoMap, meta] = await Promise.all([
+    collectCategoryInfoPages({
+      generator: "categorymembers",
+      gcmtitle: normalized,
+      gcmtype: "subcat",
+      gcmlimit: 500,
+    }),
     fetchCategoryMeta(normalized),
   ]);
 
-  const infoMap = await fetchCategoryInfo(subcatTitles);
-
-  const subcatQids = [
-    ...new Set(
-      [...infoMap.values()]
-        .map((info) => info.wikibaseItem)
-        .filter((id): id is string => id != null),
-    ),
-  ];
-  const subcatLabels = await fetchWikidataLabels(subcatQids, lang);
-
-  const subcategories: Subcategory[] = subcatTitles
-    .map((title) => {
-      const info = infoMap.get(title);
-      const qid = info?.wikibaseItem ?? null;
-      return {
-        title,
-        name: stripCategoryPrefix(title),
-        files: info?.files ?? null,
-        subcats: info?.subcats ?? null,
-        wikidata: qid ? { id: qid, label: subcatLabels.get(qid) ?? null } : null,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const subcategories = await subcategoriesFromInfo(infoMap, lang);
 
   let wikidata: CategoryWikidata | null = null;
   if (meta.wikibaseItem) {
@@ -1084,56 +1136,15 @@ export async function getCategoryParents(
   category: string,
   lang: string,
 ): Promise<Subcategory[]> {
-  const titles: string[] = [];
-  let clcontinue: string | undefined;
+  const infoMap = await collectCategoryInfoPages({
+    generator: "categories",
+    titles: withCategoryPrefix(category),
+    gclshow: "!hidden",
+    gcllimit: 500,
+  });
 
-  do {
-    const data = (await apiGet(
-      COMMONS_API,
-      {
-        action: "query",
-        titles: withCategoryPrefix(category),
-        prop: "categories",
-        clshow: "!hidden",
-        cllimit: 500,
-        clcontinue,
-      },
-      { noStore: true },
-    )) as {
-      query?: { pages?: { categories?: { title: string }[] }[] };
-      continue?: { clcontinue?: string };
-    };
-
-    const page = data.query?.pages?.[0];
-    for (const c of page?.categories ?? []) titles.push(c.title);
-    clcontinue = data.continue?.clcontinue;
-  } while (clcontinue);
-
-  if (titles.length === 0) return [];
-
-  const infoMap = await fetchCategoryInfo(titles);
-  const qids = [
-    ...new Set(
-      [...infoMap.values()]
-        .map((info) => info.wikibaseItem)
-        .filter((id): id is string => id != null),
-    ),
-  ];
-  const labels = await fetchWikidataLabels(qids, lang);
-
-  return titles
-    .map((title) => {
-      const info = infoMap.get(title);
-      const qid = info?.wikibaseItem ?? null;
-      return {
-        title,
-        name: stripCategoryPrefix(title),
-        files: info?.files ?? null,
-        subcats: info?.subcats ?? null,
-        wikidata: qid ? { id: qid, label: labels.get(qid) ?? null } : null,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  if (infoMap.size === 0) return [];
+  return subcategoriesFromInfo(infoMap, lang);
 }
 
 interface ExtMetaValue {
@@ -1275,20 +1286,19 @@ const PREVIEW_THUMB_LIMIT = 4;
 export async function getCategoryPreviewThumbs(
   category: string,
 ): Promise<string[]> {
-  const data = (await apiGet(
-    COMMONS_API,
-    {
-      action: "query",
-      generator: "categorymembers",
-      gcmtitle: withCategoryPrefix(category),
-      gcmtype: "file",
-      gcmlimit: PREVIEW_THUMB_LIMIT,
-      prop: "imageinfo",
-      iiprop: "url",
-      iiurlwidth: 320,
-    },
-    { noStore: true },
-  )) as { query?: { pages?: ImageInfoPage[] } };
+  // Served from the 5-minute cache (unlike the other membership reads): a
+  // mosaic that lags a just-published move is invisible enough that paying
+  // one upstream request per category card isn't worth the freshness.
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    generator: "categorymembers",
+    gcmtitle: withCategoryPrefix(category),
+    gcmtype: "file",
+    gcmlimit: PREVIEW_THUMB_LIMIT,
+    prop: "imageinfo",
+    iiprop: "url",
+    iiurlwidth: 320,
+  })) as { query?: { pages?: ImageInfoPage[] } };
 
   return (data.query?.pages ?? [])
     .map((page) => page.imageinfo?.[0]?.thumburl)
@@ -1309,20 +1319,18 @@ const COVER_IMAGE_WIDTH = 1200;
 export async function getCategoryCoverImage(
   category: string,
 ): Promise<string | null> {
-  const data = (await apiGet(
-    COMMONS_API,
-    {
-      action: "query",
-      generator: "categorymembers",
-      gcmtitle: withCategoryPrefix(category),
-      gcmtype: "file",
-      gcmlimit: 1,
-      prop: "imageinfo",
-      iiprop: "url",
-      iiurlwidth: COVER_IMAGE_WIDTH,
-    },
-    { noStore: true },
-  )) as { query?: { pages?: ImageInfoPage[] } };
+  // Served from the 5-minute cache for the same reason as the preview
+  // mosaic: a briefly stale banner is an acceptable trade for the traffic.
+  const data = (await apiGet(COMMONS_API, {
+    action: "query",
+    generator: "categorymembers",
+    gcmtitle: withCategoryPrefix(category),
+    gcmtype: "file",
+    gcmlimit: 1,
+    prop: "imageinfo",
+    iiprop: "url",
+    iiurlwidth: COVER_IMAGE_WIDTH,
+  })) as { query?: { pages?: ImageInfoPage[] } };
 
   return data.query?.pages?.[0]?.imageinfo?.[0]?.thumburl ?? null;
 }

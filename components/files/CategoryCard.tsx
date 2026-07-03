@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Subcategory } from "@/lib/types";
 import { useBrowser } from "@/components/browser/BrowserProvider";
 import { useCategoryDropTarget } from "@/components/browser/useCategoryDropTarget";
@@ -18,8 +18,30 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
   );
   const [previewThumbs, setPreviewThumbs] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const [inView, setInView] = useState(false);
+
+  // Defer the preview-mosaic fetch until the card scrolls near the viewport,
+  // so a category with many subcategories doesn't fire one request per card
+  // up front.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
+    if (!inView) return;
     let active = true;
     void getCategoryPreviewThumbsCached(subcat.name)
       .then((thumbs) => {
@@ -32,10 +54,11 @@ export default function CategoryCard({ subcat }: { subcat: Subcategory }) {
     return () => {
       active = false;
     };
-  }, [subcat.name]);
+  }, [inView, subcat.name]);
 
   return (
     <button
+      ref={cardRef}
       type="button"
       draggable
       onDragStart={(e) => {
