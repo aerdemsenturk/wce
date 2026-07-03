@@ -45,6 +45,45 @@ const USER_AGENT =
 
 type Params = Record<string, string | number | undefined>;
 
+// --- Rate-limit handling -----------------------------------------------------
+//
+// Wikimedia rate-limits per IP. Navigating the category tree fires bursts of
+// uncached parallel reads (children/parents/cover/grid), which can trip the
+// limit and turn every request into a 429. A 429 is rejected before the
+// request is processed, so retrying is safe for writes too.
+
+const RATE_LIMIT_MAX_RETRIES = 2;
+const RATE_LIMIT_DEFAULT_WAIT_MS = 1_000;
+// Don't let a hostile/huge Retry-After pin a route handler for minutes.
+const RATE_LIMIT_MAX_WAIT_MS = 5_000;
+
+function retryAfterMs(res: Response): number {
+  const header = res.headers.get("retry-after");
+  if (header) {
+    const seconds = Number(header);
+    const ms = Number.isFinite(seconds)
+      ? seconds * 1000
+      : new Date(header).getTime() - Date.now();
+    if (Number.isFinite(ms) && ms > 0) {
+      return Math.min(ms, RATE_LIMIT_MAX_WAIT_MS);
+    }
+  }
+  return RATE_LIMIT_DEFAULT_WAIT_MS;
+}
+
+/** `fetch` that waits out `Retry-After` and retries on 429 responses. */
+async function fetchWithRateLimitRetry(
+  input: string | URL,
+  init: RequestInit,
+): Promise<Response> {
+  let res = await fetch(input, init);
+  for (let attempt = 0; res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
+    res = await fetch(input, init);
+  }
+  return res;
+}
+
 interface ApiGetOptions {
   /**
    * Skip Next's fetch cache entirely. Required for:
@@ -73,7 +112,7 @@ async function apiGet(
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
 
-  const res = await fetch(url, {
+  const res = await fetchWithRateLimitRetry(url, {
     headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT },
     // Cache stable, slow-changing upstream responses briefly to be polite to
     // the API; bypass entirely where freshness matters (see ApiGetOptions).
@@ -235,7 +274,7 @@ async function postWithBearer(
     if (value !== undefined) body.set(key, String(value));
   }
 
-  const res = await fetch(base, {
+  const res = await fetchWithRateLimitRetry(base, {
     method: "POST",
     headers: {
       "User-Agent": USER_AGENT,
@@ -297,7 +336,7 @@ async function apiGetAuthed(base: string, params: Params, explicitToken?: string
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
-  const res = await fetch(url, {
+  const res = await fetchWithRateLimitRetry(url, {
     headers: {
       "User-Agent": USER_AGENT,
       "Api-User-Agent": USER_AGENT,
@@ -1793,7 +1832,7 @@ export async function uploadFile(
   form.set("file", file, filename);
 
   // No explicit Content-Type: fetch derives the multipart boundary from FormData.
-  const res = await fetch(COMMONS_API, {
+  const res = await fetchWithRateLimitRetry(COMMONS_API, {
     method: "POST",
     headers: {
       "User-Agent": USER_AGENT,
