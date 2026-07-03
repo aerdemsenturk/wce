@@ -1276,46 +1276,12 @@ export async function getCategoryGrid(
   return files;
 }
 
-const PREVIEW_THUMB_LIMIT = 4;
-
-/**
- * Thumbnail URLs only, for the small preview grid on a category card.
- * Deliberately skips extmetadata (descriptions/license/etc.) — the full
- * `getCategoryGrid` payload is overkill when only `thumbUrl` is shown.
- */
-export async function getCategoryPreviewThumbs(
-  category: string,
-): Promise<string[]> {
-  // Served from the 5-minute cache (unlike the other membership reads): a
-  // mosaic that lags a just-published move is invisible enough that paying
-  // one upstream request per category card isn't worth the freshness.
-  const data = (await apiGet(COMMONS_API, {
-    action: "query",
-    generator: "categorymembers",
-    gcmtitle: withCategoryPrefix(category),
-    gcmtype: "file",
-    gcmlimit: PREVIEW_THUMB_LIMIT,
-    prop: "imageinfo",
-    iiprop: "url",
-    iiurlwidth: 320,
-  })) as { query?: { pages?: ImageInfoPage[] } };
-
-  return (data.query?.pages ?? [])
-    .map((page) => page.imageinfo?.[0]?.thumburl)
-    .filter((url): url is string => Boolean(url));
-}
-
 /** Wide enough that a full-bleed banner stretched across a desktop viewport
  * doesn't visibly pixelate, without fetching a near-original-resolution file
  * just to crop most of it away. */
 const COVER_IMAGE_WIDTH = 1200;
 
-/**
- * A single, wider thumbnail for the category header's cover banner —
- * deliberately a separate request from `getCategoryPreviewThumbs` (used by
- * the small card mosaic) so that bumping the banner's resolution doesn't
- * also inflate every thumbnail in the card grid.
- */
+/** A single wide thumbnail for the category header's cover banner. */
 export async function getCategoryCoverImage(
   category: string,
 ): Promise<string | null> {

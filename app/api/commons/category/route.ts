@@ -8,7 +8,6 @@ import {
   getCategoryFiles,
   getCategoryGrid,
   getCategoryCoverImage,
-  getCategoryPreviewThumbs,
   getCategoryWikidataNote,
   moveCategoryMembership,
   removeCategoryMembership,
@@ -66,10 +65,6 @@ export async function GET(request: NextRequest) {
     if (op === "grid") {
       const files = await getCategoryGrid(category, lang);
       return NextResponse.json({ category, files });
-    }
-    if (op === "preview") {
-      const thumbs = await getCategoryPreviewThumbs(category);
-      return NextResponse.json({ category, thumbs });
     }
     if (op === "cover") {
       const url = await getCategoryCoverImage(category);

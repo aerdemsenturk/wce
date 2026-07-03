@@ -60,8 +60,8 @@ that reads a token from a session and hands it to `lib/mediawiki.ts`. Read calls
 `app/api/commons/{category,file,search,upload,user}/route.ts`, `app/api/wikidata/{search,statements}/route.ts`,
 and the login flow's `app/api/auth/{login,callback,logout}/route.ts`. The client never calls
 Wikimedia/Wikidata APIs directly — it goes through the fetch helpers in `lib/api.ts`, which also
-maintain `BoundedCache` (LRU-evicting `Map`) caches (children, file detail, parents, preview
-thumbs) so re-expanding a tree node or revisiting a category doesn't refetch within the same
+maintain `BoundedCache` (LRU-evicting `Map`) caches (children, grid, file detail, parents,
+cover) so re-expanding a tree node or revisiting a category doesn't refetch within the same
 session. Write helpers in `lib/api.ts` invalidate the relevant cache entries after a successful
 edit.
 

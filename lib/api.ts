@@ -103,35 +103,7 @@ export async function fetchCategoryGrid(
   return data.files;
 }
 
-export async function fetchCategoryPreviewThumbs(
-  category: string,
-): Promise<string[]> {
-  const params = new URLSearchParams({ op: "preview", category });
-  const res = await fetch(`/api/commons/category?${params}`);
-  if (!res.ok) throw new Error(`preview ${res.status}`);
-  const data = (await res.json()) as { thumbs: string[] };
-  return data.thumbs;
-}
-
-const previewThumbsCache = new BoundedCache<Promise<string[]>>();
-
-export function getCategoryPreviewThumbsCached(
-  category: string,
-): Promise<string[]> {
-  let entry = previewThumbsCache.get(category);
-  if (!entry) {
-    entry = fetchCategoryPreviewThumbs(category).catch((err) => {
-      previewThumbsCache.delete(category);
-      throw err;
-    });
-    previewThumbsCache.set(category, entry);
-  }
-  return entry;
-}
-
-/** Wider single-image fetch for the category header's cover banner — kept
- * separate from `fetchCategoryPreviewThumbs` so the small card mosaic isn't
- * forced to load the same larger derivative. */
+/** Single wide-image fetch for the category header's cover banner. */
 export async function fetchCategoryCoverImage(
   category: string,
 ): Promise<string | null> {
@@ -584,7 +556,6 @@ export function invalidateCategory(category: string): void {
   for (const key of parentsCache.keys()) {
     if (key.endsWith(`:${category}`)) parentsCache.delete(key);
   }
-  previewThumbsCache.delete(category);
   coverImageCache.delete(category);
 }
 

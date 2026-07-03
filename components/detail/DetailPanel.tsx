@@ -55,43 +55,30 @@ export default function DetailPanel() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={() => selectFile(null)}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (prevFile) selectFile(prevFile);
-        }}
-        disabled={!prevFile}
-        aria-label={t("previous")}
-        className="absolute left-2 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-md hover:bg-white disabled:cursor-default disabled:opacity-0 sm:left-4"
-      >
-        <ChevronIcon direction="left" />
-      </button>
-
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex h-[min(94vh,1100px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-panel shadow-2xl lg:max-w-5xl xl:max-w-6xl"
       >
-        <DetailContent key={selectedFile.pageid} title={selectedFile.title} />
+        <DetailContent
+          key={selectedFile.pageid}
+          title={selectedFile.title}
+          prevFile={prevFile}
+          nextFile={nextFile}
+        />
       </div>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (nextFile) selectFile(nextFile);
-        }}
-        disabled={!nextFile}
-        aria-label={t("next")}
-        className="absolute right-2 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-600 shadow-md hover:bg-white disabled:cursor-default disabled:opacity-0 sm:right-4"
-      >
-        <ChevronIcon direction="right" />
-      </button>
     </div>
   );
 }
 
-function DetailContent({ title }: { title: string }) {
+function DetailContent({
+  title,
+  prevFile,
+  nextFile,
+}: {
+  title: string;
+  prevFile: CategoryFileInfo | null;
+  nextFile: CategoryFileInfo | null;
+}) {
   const t = useTranslations("detail");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -142,6 +129,24 @@ function DetailContent({ title }: { title: string }) {
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
           {detail?.name ?? title.replace(/^File:/i, "")}
         </h2>
+        <button
+          type="button"
+          onClick={() => prevFile && selectFile(prevFile)}
+          disabled={!prevFile}
+          aria-label={t("previous")}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+        >
+          <ChevronIcon direction="left" />
+        </button>
+        <button
+          type="button"
+          onClick={() => nextFile && selectFile(nextFile)}
+          disabled={!nextFile}
+          aria-label={t("next")}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+        >
+          <ChevronIcon direction="right" />
+        </button>
         {deletionChangeId ? (
           <button
             type="button"
@@ -168,7 +173,7 @@ function DetailContent({ title }: { title: string }) {
           type="button"
           onClick={() => selectFile(null)}
           aria-label={t("close")}
-          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         >
           <CloseIcon />
         </button>
@@ -333,11 +338,11 @@ function CloseIcon() {
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
       <path
-        d={direction === "left" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"}
+        d={direction === "left" ? "M10 12L6 8l4-4" : "M6 12l4-4-4-4"}
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
