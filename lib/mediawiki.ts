@@ -41,8 +41,11 @@ export { stripCategoryPrefix, withCategoryPrefix };
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
 const WIKIDATA_API = "https://www.wikidata.org/w/api.php";
 
+// Wikimedia's User-Agent policy asks for a descriptive UA with a way to
+// reach the operator (URL + contact) — and treats compliant, authenticated
+// clients more leniently in rate-limiting.
 const USER_AGENT =
-  "WikimediaCommonsEditor/0.1 (https://github.com/; read-only browser)";
+  "WikimediaCommonsEditor/0.1 (https://github.com/aerdemsenturk/wce; aerdemsenturk@gmail.com)";
 
 type Params = Record<string, string | number | undefined>;
 
@@ -758,30 +761,35 @@ async function fetchWikidataLabelAndDescription(
   };
 }
 
-/** Batch-resolve Wikidata labels (up to 50 ids per request). */
+/** Batch-resolve Wikidata labels (up to 50 ids per request). Batches run in
+ * parallel; the global upstream concurrency gate keeps the fan-out polite. */
 async function fetchWikidataLabels(
   ids: string[],
   lang: string,
 ): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    const data = (await apiGet(WIKIDATA_API, {
-      action: "wbgetentities",
-      ids: batch.join("|"),
-      props: "labels",
-      languages: `${lang}|en`,
-    })) as {
-      entities?: Record<
-        string,
-        { labels?: Record<string, { value: string }> }
-      >;
-    };
-    for (const id of batch) {
-      const labels = data.entities?.[id]?.labels;
-      out.set(id, labels?.[lang]?.value ?? labels?.en?.value ?? null);
-    }
-  }
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) batches.push(ids.slice(i, i + 50));
+
+  await Promise.all(
+    batches.map(async (batch) => {
+      const data = (await apiGet(WIKIDATA_API, {
+        action: "wbgetentities",
+        ids: batch.join("|"),
+        props: "labels",
+        languages: `${lang}|en`,
+      })) as {
+        entities?: Record<
+          string,
+          { labels?: Record<string, { value: string }> }
+        >;
+      };
+      for (const id of batch) {
+        const labels = data.entities?.[id]?.labels;
+        out.set(id, labels?.[lang]?.value ?? labels?.en?.value ?? null);
+      }
+    }),
+  );
   return out;
 }
 
@@ -1128,15 +1136,22 @@ async function getCategoryChildrenUncached(
     fetchCategoryMeta(normalized),
   ]);
 
-  const subcategories = await subcategoriesFromInfo(infoMap, lang);
+  // The subcategory labels and the category's own label/description hit
+  // different Wikidata entities — resolve them concurrently.
+  const [subcategories, ownLabels] = await Promise.all([
+    subcategoriesFromInfo(infoMap, lang),
+    meta.wikibaseItem
+      ? fetchWikidataLabelAndDescription(meta.wikibaseItem, lang)
+      : Promise.resolve(null),
+  ]);
 
   let wikidata: CategoryWikidata | null = null;
-  if (meta.wikibaseItem) {
-    const { label, description } = await fetchWikidataLabelAndDescription(
-      meta.wikibaseItem,
-      lang,
-    );
-    wikidata = { id: meta.wikibaseItem, label, description };
+  if (meta.wikibaseItem && ownLabels) {
+    wikidata = {
+      id: meta.wikibaseItem,
+      label: ownLabels.label,
+      description: ownLabels.description,
+    };
   }
 
   return {
