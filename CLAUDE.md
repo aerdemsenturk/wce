@@ -47,10 +47,12 @@ Commons; the app still works as a read-only browser.
 
 ## Architecture
 
-**Data flow:** all Wikimedia/Wikidata calls happen server-side in `lib/mediawiki.ts` — the only
-module that talks to `commons.wikimedia.org` and `wikidata.org`. It sets the required
-`User-Agent` and mints per-wiki CSRF tokens (a token minted on Commons can't be reused on
-Wikidata, even though the OAuth bearer is shared). Every write/auth-read function takes an
+**Data flow:** all Wikimedia/Wikidata calls happen server-side in `lib/mediawiki/*` — the only
+code that talks to `commons.wikimedia.org` and `wikidata.org`. `lib/mediawiki.ts` is a barrel
+preserving the `@/lib/mediawiki` import path over the split modules: `client.ts` (HTTP + rate
+limiting + OAuth/CSRF, internal), `reads.ts`, `writes.ts`, `wikidata.ts`, `users.ts`. The client
+layer sets the required `User-Agent` and mints per-wiki CSRF tokens (a token minted on Commons
+can't be reused on Wikidata, even though the OAuth bearer is shared). Every write/auth-read function takes an
 optional trailing `token?: string`: route handlers resolve the logged-in visitor's access token
 via `lib/session.ts` and pass it explicitly; when omitted, the function falls back to the legacy
 owner-only token resolution. `lib/session.ts` has no dependency on `lib/mediawiki.ts` — it only
@@ -101,10 +103,10 @@ default single-card ghost.
 - `CategoryChildren` — subcategories + file count + Wikidata badge for one category (sidebar tree).
 - `CategoryFileInfo` — one grid card's worth of data, including the derived `FileStatus` (which of
   description/date/author/license/location are present) and `missingCount`, used by the grid's
-  filter/sort bar. `FileStatus` is derived in `lib/mediawiki.ts`'s `deriveStatus()` from
+  filter/sort bar. `FileStatus` is derived in `lib/mediawiki/reads.ts`'s `deriveStatus()` from
   `imageinfo.extmetadata`, not from wikitext.
 
-For the file detail panel, `getFileDetail()` in `lib/mediawiki.ts` prefers wikitext-parsed fields
+For the file detail panel, `getFileDetail()` in `lib/mediawiki/reads.ts` prefers wikitext-parsed fields
 (via `lib/wikitext.ts`'s `parseInformation()`, which reads the `{{Information}}` template for
 multilingual descriptions/date/author and `{{Location}}` for coordinates) and falls back to
 `imageinfo.extmetadata` only when wikitext parsing comes up empty. GeoData coordinates
