@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { getFileDetailCached } from "@/lib/api";
+import { getFileDetailsCached } from "@/lib/api";
 import {
   overlayDescriptions,
   overlayCategories,
@@ -31,6 +31,28 @@ export default function BulkEditModal({
   onClose: () => void;
 }) {
   const t = useTranslations("bulkEdit");
+  const locale = useLocale();
+
+  // One batched read for the whole selection (≤50 files per request) instead
+  // of a detail fetch per row; rows look their file up in the map.
+  const [details, setDetails] = useState<Map<string, FileDetail> | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to loading state before refetching
+    setLoadError(false);
+    getFileDetailsCached(files.map((f) => f.title), locale)
+      .then((map) => {
+        if (active) setDetails(map);
+      })
+      .catch(() => {
+        if (active) setLoadError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [files, locale]);
 
   return (
     <div
@@ -62,7 +84,13 @@ export default function BulkEditModal({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {files.map((file) => (
-            <BulkEditRow key={file.pageid} file={file} defaultParent={defaultParent} />
+            <BulkEditRow
+              key={file.pageid}
+              file={file}
+              defaultParent={defaultParent}
+              fetched={details?.get(file.title) ?? null}
+              error={loadError || (details != null && !details.has(file.title))}
+            />
           ))}
         </div>
       </div>
@@ -73,43 +101,35 @@ export default function BulkEditModal({
 function BulkEditRow({
   file,
   defaultParent,
+  fetched,
+  error,
 }: {
   file: CategoryFileInfo;
   defaultParent: string | null;
+  /** This row's detail from the modal-level batch, or null while loading. */
+  fetched: FileDetail | null;
+  error: boolean;
 }) {
   const tc = useTranslations("common");
   const t = useTranslations("detail");
-  const locale = useLocale();
   const { pendingChanges } = useBrowser();
 
   const [detail, setDetail] = useState<FileDetail | null>(null);
-  const [error, setError] = useState(false);
 
+  // Overlay queued-but-unpublished edits once the batch delivers this row's
+  // detail; edits made in the row keep updating local state via onSaved.
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setError(false);
-      try {
-        const data = await getFileDetailCached(file.title, locale);
-        if (active) {
-          setDetail({
-            ...data,
-            descriptions: overlayDescriptions(file.title, data.descriptions, pendingChanges),
-            categories: overlayCategories(file.title, data.categories, pendingChanges),
-            depicts: overlayDepicts(file.title, data.depicts, pendingChanges),
-            coordinates: overlayLocation(file.title, data.coordinates, pendingChanges),
-          });
-        }
-      } catch {
-        if (active) setError(true);
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
+    if (!fetched) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state derived from the async batch result
+    setDetail({
+      ...fetched,
+      descriptions: overlayDescriptions(file.title, fetched.descriptions, pendingChanges),
+      categories: overlayCategories(file.title, fetched.categories, pendingChanges),
+      depicts: overlayDepicts(file.title, fetched.depicts, pendingChanges),
+      coordinates: overlayLocation(file.title, fetched.coordinates, pendingChanges),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingChanges read via closure
-  }, [file.title, locale]);
+  }, [fetched, file.title]);
 
   return (
     <div className="flex gap-3 rounded-lg border border-border-base p-3">

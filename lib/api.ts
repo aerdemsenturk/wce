@@ -185,6 +185,66 @@ export function getFileDetailCached(
   return entry;
 }
 
+/** Upstream cap on titles per detail batch (mirrors the server's limit). */
+const FILE_DETAIL_BATCH_LIMIT = 50;
+
+async function fetchFileDetailsBatch(
+  titles: string[],
+  lang: string,
+): Promise<FileDetail[]> {
+  const params = new URLSearchParams({ titles: titles.join("|"), lang });
+  const res = await fetch(`/api/commons/file?${params}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `fileBatch ${res.status}`);
+  }
+  const data = (await res.json()) as { files: FileDetail[] };
+  return data.files;
+}
+
+/**
+ * Full detail for many files at once (bulk-edit modal): titles not already
+ * in the client cache are fetched in ≤50-title batch requests — three
+ * upstream calls per batch instead of three per file — and seeded into the
+ * per-file cache. Files that don't exist are absent from the returned map.
+ */
+export async function getFileDetailsCached(
+  titles: string[],
+  lang: string,
+): Promise<Map<string, FileDetail>> {
+  const results = new Map<string, FileDetail>();
+
+  const uncached = titles.filter((t) => !fileDetailCache.get(`${lang}:${t}`));
+  const chunks: string[][] = [];
+  for (let i = 0; i < uncached.length; i += FILE_DETAIL_BATCH_LIMIT) {
+    chunks.push(uncached.slice(i, i + FILE_DETAIL_BATCH_LIMIT));
+  }
+  const fetched = (
+    await Promise.all(chunks.map((chunk) => fetchFileDetailsBatch(chunk, lang)))
+  ).flat();
+  for (const detail of fetched) {
+    results.set(detail.title, detail);
+    fileDetailCache.set(`${lang}:${detail.title}`, Promise.resolve(detail));
+  }
+
+  // Titles the batch didn't cover: already cached (or in flight) per-file.
+  await Promise.all(
+    titles
+      .filter((t) => !results.has(t))
+      .map(async (t) => {
+        const entry = fileDetailCache.get(`${lang}:${t}`);
+        if (!entry) return; // batch confirmed it doesn't exist
+        try {
+          results.set(t, await entry);
+        } catch {
+          // Failed per-file fetch — the caller's row shows its error state.
+        }
+      }),
+  );
+
+  return results;
+}
+
 /** Patch a single language's description on a file page (v2 write path). */
 export async function updateFileDescription(
   title: string,

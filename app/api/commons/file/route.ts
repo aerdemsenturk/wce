@@ -6,19 +6,45 @@ import {
   removeFileLocation,
   nominateFileDeletion,
   getFileDetail,
+  getFileDetails,
+  FILE_DETAIL_BATCH_LIMIT,
   removeDepict,
 } from "@/lib/mediawiki";
 import { isLocale, defaultLocale } from "@/i18n/config";
 import { isLoginConfigured, refreshSessionIfNeeded } from "@/lib/session";
 
 // Server-side proxy for read-only Commons file detail.
-// GET /api/commons/file?title=File:Foo.jpg&lang=tr
+// GET /api/commons/file?title=File:Foo.jpg&lang=tr           (single)
+// GET /api/commons/file?titles=File:A.jpg|File:B.jpg&lang=tr (batch, ≤50 —
+//   "|" can't occur in a MediaWiki title, so it's a safe separator)
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const title = searchParams.get("title")?.trim();
   const langParam = searchParams.get("lang") ?? undefined;
   const lang = isLocale(langParam) ? langParam : defaultLocale;
 
+  const titlesParam = searchParams.get("titles");
+  if (titlesParam !== null) {
+    const titles = titlesParam
+      .split("|")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (titles.length === 0) return NextResponse.json({ files: [] });
+    if (titles.length > FILE_DETAIL_BATCH_LIMIT) {
+      return NextResponse.json(
+        { error: `At most ${FILE_DETAIL_BATCH_LIMIT} titles per request` },
+        { status: 400 },
+      );
+    }
+    try {
+      const files = await getFileDetails(titles, lang);
+      return NextResponse.json({ files });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upstream error";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
+
+  const title = searchParams.get("title")?.trim();
   if (!title) {
     return NextResponse.json(
       { error: "Missing 'title' parameter" },
