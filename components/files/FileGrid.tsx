@@ -98,7 +98,17 @@ export default function FileGrid() {
           const fetchName = resolveCategoryName(current!, pendingChanges);
           data =
             synthetic ??
-            overlayFiles(current!, await getCategoryGridCached(fetchName, locale), pendingChanges);
+            overlayFiles(
+              current!,
+              await getCategoryGridCached(fetchName, locale, (partial) => {
+                // Long category: render the pages fetched so far instead of
+                // blocking the grid on the full listing.
+                if (!active) return;
+                setFiles(overlayFiles(current!, partial, pendingChanges));
+                setLoading(false);
+              }),
+              pendingChanges,
+            );
         }
         if (active) setFiles(data);
       } catch {

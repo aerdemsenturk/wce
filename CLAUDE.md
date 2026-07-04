@@ -56,7 +56,14 @@ via `lib/session.ts` and pass it explicitly; when omitted, the function falls ba
 owner-only token resolution. `lib/session.ts` has no dependency on `lib/mediawiki.ts` — it only
 manages the encrypted session cookie and PKCE handshake; route handlers are the integration point
 that reads a token from a session and hands it to `lib/mediawiki.ts`. Read calls revalidate every
-5 minutes; write calls are not cached. `lib/mediawiki.ts` is wrapped by proxy routes under
+5 minutes; write calls are not cached. The hot category reads (children/parents/grid pages)
+additionally go through `lib/serverCache.ts` — a module-level TTL+LRU cache shared across
+visitors that the write functions in `lib/mediawiki.ts` invalidate per category, so a
+just-published edit is visible on the next read without giving up cross-visitor caching (Next's
+own tag invalidation can't do both in a Route Handler). The grid is paginated:
+`getCategoryGridPage()` returns 50 files plus an opaque continue token, and the client
+(`getCategoryGridCached` in `lib/api.ts`) walks the pages, rendering them as they arrive, up to
+600 files. `lib/mediawiki.ts` is wrapped by proxy routes under
 `app/api/commons/{category,file,search,upload,user}/route.ts`, `app/api/wikidata/{search,statements}/route.ts`,
 and the login flow's `app/api/auth/{login,callback,logout}/route.ts`. The client never calls
 Wikimedia/Wikidata APIs directly — it goes through the fetch helpers in `lib/api.ts`, which also

@@ -16,6 +16,7 @@ import type {
 import { stripCategoryPrefix, withCategoryPrefix } from "./category";
 import { defaultLocale } from "@/i18n/config";
 import { CURATED_PROPERTIES } from "./wikidataProperties";
+import { upstreamReadCache } from "./serverCache";
 import {
   parseInformation,
   stripHtml,
@@ -1090,8 +1091,28 @@ export async function removeWikidataItemStatement(
   }
 }
 
-/** Everything the sidebar needs to render one category's children. */
+/** Drop every cached upstream read (children/parents/grid pages, any
+ * language) for a category. Exposed for route handlers that know about an
+ * affected category the write function itself can't see — e.g. the parent
+ * listing a rename happened under. */
+export function invalidateCategoryCache(category: string): void {
+  upstreamReadCache.invalidateCategory(category);
+}
+
+/** Everything the sidebar needs to render one category's children. Served
+ * from the shared upstream cache; write paths invalidate their categories so
+ * the next read is guaranteed fresh (the reason these reads used to bypass
+ * caching entirely with noStore). */
 export async function getCategoryChildren(
+  category: string,
+  lang: string,
+): Promise<CategoryChildren> {
+  return upstreamReadCache.get("children", category, [lang], () =>
+    getCategoryChildrenUncached(category, lang),
+  );
+}
+
+async function getCategoryChildrenUncached(
   category: string,
   lang: string,
 ): Promise<CategoryChildren> {
@@ -1133,6 +1154,15 @@ export async function getCategoryChildren(
  * ancestors above the tree root.
  */
 export async function getCategoryParents(
+  category: string,
+  lang: string,
+): Promise<Subcategory[]> {
+  return upstreamReadCache.get("parents", category, [lang], () =>
+    getCategoryParentsUncached(category, lang),
+  );
+}
+
+async function getCategoryParentsUncached(
   category: string,
   lang: string,
 ): Promise<Subcategory[]> {
@@ -1198,8 +1228,6 @@ function deriveStatus(ext: ExtMetadata | undefined): FileStatus {
   };
 }
 
-const GRID_MAX_FILES = 600; // cap per category to keep the grid responsive
-
 /** Map one imageinfo page (from a generator query) to a grid file. */
 function toCategoryFileInfo(page: ImageInfoPage): CategoryFileInfo {
   const info = page.imageinfo?.[0];
@@ -1236,44 +1264,70 @@ const IMAGEINFO_PROPS = {
   iiurlwidth: 320,
 } as const;
 
+export interface CategoryGridPage {
+  files: CategoryFileInfo[];
+  /** Opaque continuation token for the next page, null on the last one. */
+  continueToken: string | null;
+}
+
 /**
- * Files in a category with enough metadata to render the grid (thumbnail,
- * size, upload year, status dots). Uses a generator so file listing and
- * imageinfo come back together, paginated.
+ * One page of a category's grid listing — 50 files, the API's cap when
+ * thumbnails are requested. The client walks the continuation itself (see
+ * getCategoryGridCached in lib/api.ts) so the first page can render while
+ * the rest load, instead of the server chaining every continuation upstream
+ * before responding at all.
  */
-export async function getCategoryGrid(
+export async function getCategoryGridPage(
   category: string,
   lang: string,
-): Promise<CategoryFileInfo[]> {
-  const files: CategoryFileInfo[] = [];
+  continueToken?: string,
+): Promise<CategoryGridPage> {
+  return upstreamReadCache.get("grid", category, [lang, continueToken ?? ""], () =>
+    getCategoryGridPageUncached(category, lang, continueToken),
+  );
+}
+
+async function getCategoryGridPageUncached(
+  category: string,
+  lang: string,
+  continueToken?: string,
+): Promise<CategoryGridPage> {
+  // MediaWiki's continue record must be echoed back verbatim on the next
+  // request; the token is that whole record serialized, opaque to the client.
   let cont: Record<string, string> | undefined;
-
-  do {
-    const data = (await apiGet(
-      COMMONS_API,
-      {
-        action: "query",
-        generator: "categorymembers",
-        gcmtitle: withCategoryPrefix(category),
-        gcmtype: "file",
-        gcmlimit: 50,
-        ...IMAGEINFO_PROPS,
-        iiextmetadatalanguage: lang,
-        ...(cont ?? {}),
-      },
-      { noStore: true },
-    )) as {
-      query?: { pages?: ImageInfoPage[] };
-      continue?: Record<string, string>;
-    };
-
-    for (const page of data.query?.pages ?? []) {
-      files.push(toCategoryFileInfo(page));
+  if (continueToken) {
+    try {
+      const parsed: unknown = JSON.parse(continueToken);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        cont = parsed as Record<string, string>;
+      }
+    } catch {
+      // Garbled/stale token — fall through to the first page.
     }
-    cont = data.continue;
-  } while (cont && files.length < GRID_MAX_FILES);
+  }
 
-  return files;
+  const data = (await apiGet(
+    COMMONS_API,
+    {
+      action: "query",
+      generator: "categorymembers",
+      gcmtitle: withCategoryPrefix(category),
+      gcmtype: "file",
+      gcmlimit: 50,
+      ...IMAGEINFO_PROPS,
+      iiextmetadatalanguage: lang,
+      ...(cont ?? {}),
+    },
+    { noStore: true },
+  )) as {
+    query?: { pages?: ImageInfoPage[] };
+    continue?: Record<string, string>;
+  };
+
+  return {
+    files: (data.query?.pages ?? []).map(toCategoryFileInfo),
+    continueToken: data.continue ? JSON.stringify(data.continue) : null,
+  };
 }
 
 /** Wide enough that a full-bleed banner stretched across a desktop viewport
@@ -1847,6 +1901,9 @@ export async function uploadFile(
     throw new Error("Upload failed");
   }
 
+  // The new file appears in each target category's grid and file count.
+  for (const c of meta.categories) upstreamReadCache.invalidateCategory(c);
+
   return { title: `File:${data.upload?.filename ?? filename}` };
 }
 
@@ -1922,6 +1979,20 @@ export async function removeFileLocation(title: string, token?: string): Promise
   await postEdit(fileTitle, updated, "Remove location via WCE", page.timestamp, undefined, token);
 }
 
+/** Drop the cached listings a just-changed `[[Category:...]]` link affects:
+ * the touched categories' children/grid, and — when the edited page is
+ * itself a category page (a re-parenting) — that category's own cached
+ * parents listing. */
+function invalidateMembershipCaches(
+  pageTitle: string,
+  ...categories: string[]
+): void {
+  for (const c of categories) upstreamReadCache.invalidateCategory(c);
+  if (/^Category:/i.test(pageTitle)) {
+    upstreamReadCache.invalidateCategory(pageTitle);
+  }
+}
+
 /**
  * Move a page's category membership: replace `[[Category:from]]` with
  * `[[Category:to]]` on `pageTitle`'s own wikitext. Works for both file
@@ -1943,7 +2014,10 @@ export async function moveCategoryMembership(
     // earlier publish attempt already completed this exact move (and a
     // mixed-result retry is replaying it). Treat the latter as success so
     // a retry converges instead of failing forever on work already done.
-    if (withRemovedCategory(page.wikitext, toCategory) != null) return;
+    if (withRemovedCategory(page.wikitext, toCategory) != null) {
+      invalidateMembershipCaches(pageTitle, fromCategory, toCategory);
+      return;
+    }
     throw new Error(`Page isn't categorized under "${fromCategory}"`);
   }
 
@@ -1955,6 +2029,7 @@ export async function moveCategoryMembership(
     undefined,
     token,
   );
+  invalidateMembershipCaches(pageTitle, fromCategory, toCategory);
 }
 
 /** Add a `[[Category:X]]` link to a page that isn't already categorized
@@ -1973,6 +2048,7 @@ export async function addCategoryMembership(
 
   const updated = withAddedCategory(page.wikitext, category);
   await postEdit(pageTitle, updated, `Add to Category:${category} via WCE`, page.timestamp, undefined, token);
+  invalidateMembershipCaches(pageTitle, category);
 }
 
 /** Remove a page's `[[Category:X]]` link outright (rather than moving it to
@@ -1998,6 +2074,7 @@ export async function removeCategoryMembership(
     undefined,
     token,
   );
+  invalidateMembershipCaches(pageTitle, category);
 }
 
 export interface CreateCategoryResult {
@@ -2071,6 +2148,12 @@ export async function createCategoryFromSelection(
       });
     }
   }
+
+  // The per-file moves invalidated both categories already, but a create
+  // with no files (or with every move failing) must still drop the parent's
+  // listings and any cached miss for the new category itself.
+  upstreamReadCache.invalidateCategory(name);
+  upstreamReadCache.invalidateCategory(parentCategory);
 
   return { moved, failed, wikidataError };
 }
@@ -2149,8 +2232,10 @@ export async function setCategorySitelink(
     );
   }
 
-  // Nudge Commons to register the new connection immediately.
+  // Nudge Commons to register the new connection immediately, and drop our
+  // own cached reads (the children listing carries the Wikidata badge).
   await purgeCommonsPage(title, token);
+  upstreamReadCache.invalidateCategory(category);
 }
 
 /** Remove the `commonswiki` sitelink from whichever Wikidata item currently
@@ -2179,8 +2264,10 @@ export async function clearCategorySitelink(category: string, token?: string): P
     );
   }
 
-  // Nudge Commons to drop the now-removed connection immediately.
+  // Nudge Commons to drop the now-removed connection immediately, and drop
+  // our own cached reads (the children listing carries the Wikidata badge).
   await purgeCommonsPage(title, token);
+  upstreamReadCache.invalidateCategory(category);
 }
 
 interface MoveResponse {
@@ -2249,6 +2336,12 @@ export async function renameCategory(
       });
     }
   }
+
+  // Parents' children listings still show the old name; the route handler
+  // invalidates the parent the client was viewing (this function can't see
+  // it), and any other parent falls back to the cache TTL.
+  upstreamReadCache.invalidateCategory(oldName);
+  upstreamReadCache.invalidateCategory(newName);
 
   return { moved, failed };
 }

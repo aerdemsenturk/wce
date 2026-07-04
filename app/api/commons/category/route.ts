@@ -6,9 +6,10 @@ import {
   getCategoryChildren,
   getCategoryParents,
   getCategoryFiles,
-  getCategoryGrid,
+  getCategoryGridPage,
   getCategoryCoverImage,
   getCategoryWikidataNote,
+  invalidateCategoryCache,
   moveCategoryMembership,
   removeCategoryMembership,
   renameCategory,
@@ -63,8 +64,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ category, files });
     }
     if (op === "grid") {
-      const files = await getCategoryGrid(category, lang);
-      return NextResponse.json({ category, files });
+      const cont = searchParams.get("continue") ?? undefined;
+      const page = await getCategoryGridPage(category, lang, cont);
+      return NextResponse.json({
+        category,
+        files: page.files,
+        continue: page.continueToken,
+      });
     }
     if (op === "cover") {
       const url = await getCategoryCoverImage(category);
@@ -95,6 +101,7 @@ export async function PATCH(request: NextRequest) {
     newName?: string;
     category?: string;
     wikidataQid?: string | null;
+    parentCategory?: string;
   } | null;
 
   try {
@@ -147,6 +154,12 @@ export async function PATCH(request: NextRequest) {
         oldName === newName
           ? { moved: [], failed: [] }
           : await renameCategory(oldName, newName, token);
+
+      // renameCategory can't see which parent listing the tree is showing;
+      // the client sends it along so that listing refreshes immediately
+      // instead of after the server cache's TTL.
+      const parentCategory = body.parentCategory?.trim();
+      if (parentCategory) invalidateCategoryCache(parentCategory);
 
       let wikidataError: string | undefined;
       if (body.wikidataQid !== undefined) {

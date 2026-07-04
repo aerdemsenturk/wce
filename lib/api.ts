@@ -92,15 +92,22 @@ export async function fetchCategoryFiles(
   return data.files;
 }
 
-export async function fetchCategoryGrid(
+const GRID_MAX_FILES = 600; // cap per category to keep the grid responsive
+
+/** One 50-file page of a category's grid listing; `continue` chains pages. */
+async function fetchCategoryGridPage(
   category: string,
   lang: string,
-): Promise<CategoryFileInfo[]> {
+  continueToken?: string,
+): Promise<{ files: CategoryFileInfo[]; continue: string | null }> {
   const params = new URLSearchParams({ op: "grid", category, lang });
+  if (continueToken) params.set("continue", continueToken);
   const res = await fetch(`/api/commons/category?${params}`);
   if (!res.ok) throw new Error(`grid ${res.status}`);
-  const data = (await res.json()) as { files: CategoryFileInfo[] };
-  return data.files;
+  return (await res.json()) as {
+    files: CategoryFileInfo[];
+    continue: string | null;
+  };
 }
 
 /** Single wide-image fetch for the category header's cover banner. */
@@ -472,6 +479,9 @@ export async function renameCategory(
       oldName,
       newName,
       wikidataQid: options?.wikidataQid,
+      // Lets the server drop its cached listing for the parent the tree is
+      // showing — the rename itself can't tell which parent that is.
+      parentCategory: options?.parentCategory ?? undefined,
     }),
   });
   if (!res.ok) {
@@ -574,14 +584,32 @@ export async function fetchSearchFiles(
 
 const gridCache = new BoundedCache<Promise<CategoryFileInfo[]>>();
 
+/**
+ * A category's full grid listing, assembled page by page (50 files each, up
+ * to GRID_MAX_FILES). `onPage` fires with the accumulated files after each
+ * intermediate page so a long category can render as it loads — only for the
+ * caller that starts the fetch; cache hits resolve with the full list.
+ */
 export function getCategoryGridCached(
   category: string,
   lang: string,
+  onPage?: (files: CategoryFileInfo[]) => void,
 ): Promise<CategoryFileInfo[]> {
   const key = `${lang}:${category}`;
   let entry = gridCache.get(key);
   if (!entry) {
-    entry = fetchCategoryGrid(category, lang).catch((err) => {
+    entry = (async () => {
+      const files: CategoryFileInfo[] = [];
+      let cont: string | null = null;
+      do {
+        const page: { files: CategoryFileInfo[]; continue: string | null } =
+          await fetchCategoryGridPage(category, lang, cont ?? undefined);
+        files.push(...page.files);
+        cont = page.continue;
+        if (cont && files.length < GRID_MAX_FILES) onPage?.([...files]);
+      } while (cont && files.length < GRID_MAX_FILES);
+      return files;
+    })().catch((err) => {
       gridCache.delete(key);
       throw err;
     });
