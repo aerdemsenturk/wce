@@ -50,12 +50,14 @@ read-mostly proxy over the MediaWiki and Wikidata APIs.
   (`www.wikidata.org`), Nominatim (reverse geocoding)
 - **Auth:** Wikimedia OAuth 2.0 — per-visitor Authorization Code + PKCE login for editing (any
   Wikimedia account, session in an encrypted httpOnly cookie); a legacy owner-only client
-  remains wired in `lib/mediawiki.ts` as a fallback for deployments that haven't configured
+  remains wired in `lib/mediawiki/` as a fallback for deployments that haven't configured
   per-visitor login
 
-All upstream API calls happen server-side, through `lib/mediawiki.ts` and the proxy routes
-under `app/api/`, so a proper `User-Agent` is always sent and the client never talks to
-Wikimedia/Wikidata/Nominatim directly.
+All upstream API calls happen server-side, through the `lib/mediawiki/` modules and the proxy
+routes under `app/api/`, so a proper `User-Agent` is always sent and the client never talks to
+Wikimedia/Wikidata/Nominatim directly. Hot category reads are served from a short-TTL server
+cache that write operations invalidate, so published edits are visible immediately without
+refetching everything on every navigation.
 
 ## Getting started
 
@@ -123,7 +125,10 @@ wce/
 │   ├── layout/         # Header, sidebar shell, language toggle, user menu
 │   └── ui/             # Shared inputs, pickers, toast
 ├── lib/
-│   ├── mediawiki.ts    # Server-side MediaWiki/Wikidata client (reads + writes)
+│   ├── mediawiki.ts    # Barrel over lib/mediawiki/ (import path stays @/lib/mediawiki)
+│   ├── mediawiki/      # Server-side MediaWiki/Wikidata client, split by concern:
+│   │                   #   client (HTTP/OAuth/rate limit), reads, writes, wikidata, users
+│   ├── serverCache.ts  # TTL+LRU cache for upstream category reads, invalidated on writes
 │   ├── session.ts      # Encrypted per-visitor login session + PKCE handshake
 │   ├── wikitext.ts     # {{Information}} / {{Location}} parsing + targeted patch helpers
 │   ├── api.ts          # Client fetch helpers + in-memory caches
@@ -137,6 +142,19 @@ wce/
 ├── i18n/                # next-intl config, cookie-based locale
 └── messages/{tr,en}.json
 ```
+
+## Deployment
+
+Pushing to `main` deploys to production via GitHub Actions
+(`.github/workflows/deploy.yml`), in two gated steps:
+
+1. **verify** — `npm ci`, the test suite and a full production build run on a GitHub runner.
+   If anything fails, the deploy step never starts and the server is untouched.
+2. **deploy** — SSHes into the server and runs `git pull`, `npm ci`, `npm run build`,
+   `pm2 restart wce`.
+
+Deploys are serialized (`concurrency: production-deploy`): overlapping pushes queue behind the
+running deploy instead of racing it in the same server directory.
 
 ## Status
 
