@@ -660,11 +660,21 @@ export function getCategoryGridCached(
   if (!entry) {
     entry = (async () => {
       const files: CategoryFileInfo[] = [];
+      // Continuation pages can overlap: the listing may shift between page
+      // requests, and the server caches each page independently, so one can
+      // be minutes staler than the next. The same file on two pages would
+      // otherwise duplicate a React key in the grid.
+      const seen = new Set<number>();
       let cont: string | null = null;
       do {
         const page: { files: CategoryFileInfo[]; continue: string | null } =
           await fetchCategoryGridPage(category, lang, cont ?? undefined);
-        files.push(...page.files);
+        for (const file of page.files) {
+          if (!seen.has(file.pageid)) {
+            seen.add(file.pageid);
+            files.push(file);
+          }
+        }
         cont = page.continue;
         if (cont && files.length < GRID_MAX_FILES) onPage?.([...files]);
       } while (cont && files.length < GRID_MAX_FILES);
