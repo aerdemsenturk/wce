@@ -42,7 +42,11 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd ~/htdocs/wce.birtakimseyler.com
-            git pull
+            # The server clone is a read-only mirror of origin/main; fetch +
+            # hard reset instead of pull so local drift or a rewritten
+            # history can never wedge a deploy.
+            git fetch origin main
+            git reset --hard origin/main
             npm ci
             npm run build
             pm2 restart wce
