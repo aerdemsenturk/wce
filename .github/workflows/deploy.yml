@@ -4,8 +4,31 @@ on:
   push:
     branches: [main]
 
+# One deploy at a time: a second push queues behind the running one instead
+# of racing it in the same server directory. Never cancel an in-flight
+# deploy mid-restart.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
+  # Gate: run tests and a full production build on a GitHub runner first.
+  # If this fails, the deploy job below never starts and the server (and the
+  # running site) is untouched.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
   deploy:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -20,6 +43,6 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd ~/htdocs/wce.birtakimseyler.com
             git pull
-            npm install
+            npm ci
             npm run build
             pm2 restart wce
