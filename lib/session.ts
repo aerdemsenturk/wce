@@ -7,7 +7,7 @@
 // it to that module, which stays a plain "talk to Wikimedia" client that
 // doesn't need to know about cookies or encryption.
 
-import { cookies } from "next/headers";
+import { getCookieStore } from "./cookies";
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from "crypto";
 
 const OAUTH_TOKEN_ENDPOINT =
@@ -50,7 +50,8 @@ function sessionSecret(): Buffer {
 // AES-256-GCM: random 12-byte IV + 16-byte auth tag prefixed to the
 // ciphertext, base64url-encoded as a single cookie-safe string. Exported
 // (alongside decrypt) only so lib/session.test.ts can cover this module's
-// one piece of genuinely pure logic directly, without mocking next/headers.
+// one piece of genuinely pure logic directly, without mocking the cookie
+// store.
 export function encrypt(payload: unknown): string {
   const key = sessionSecret();
   const iv = randomBytes(12);
@@ -80,7 +81,7 @@ export function decrypt<T>(value: string): T | null {
 }
 
 export async function createSession(session: Session): Promise<void> {
-  const store = await cookies();
+  const store = await getCookieStore();
   store.set(SESSION_COOKIE, encrypt(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -92,14 +93,14 @@ export async function createSession(session: Session): Promise<void> {
 
 /** Pure read — does not refresh an expiring token. */
 export async function getSession(): Promise<Session | null> {
-  const store = await cookies();
-  const raw = store.get(SESSION_COOKIE)?.value;
+  const store = await getCookieStore();
+  const raw = store.get(SESSION_COOKIE);
   if (!raw) return null;
   return decrypt<Session>(raw);
 }
 
 export async function destroySession(): Promise<void> {
-  const store = await cookies();
+  const store = await getCookieStore();
   store.delete(SESSION_COOKIE);
 }
 
@@ -175,7 +176,7 @@ export async function createPkceState(): Promise<PkceState> {
     state: randomBytes(16).toString("hex"),
     codeVerifier: randomBytes(32).toString("base64url"),
   };
-  const store = await cookies();
+  const store = await getCookieStore();
   store.set(PKCE_COOKIE, encrypt(pkce), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -191,9 +192,9 @@ export async function createPkceState(): Promise<PkceState> {
  * null — a CSRF/replay attempt, or the cookie expired before the visitor
  * finished the Wikimedia consent screen). */
 export async function consumePkceState(receivedState: string): Promise<string | null> {
-  const store = await cookies();
-  const raw = store.get(PKCE_COOKIE)?.value;
-  store.delete({ name: PKCE_COOKIE, path: "/api/auth" });
+  const store = await getCookieStore();
+  const raw = store.get(PKCE_COOKIE);
+  store.delete(PKCE_COOKIE, { path: "/api/auth" });
   if (!raw) return null;
   const pkce = decrypt<PkceState>(raw);
   if (!pkce || pkce.state !== receivedState) return null;

@@ -640,7 +640,7 @@ export async function getFileDetails(
       },
       // Bypass the 5-min server cache: a just-published description/location/
       // depict/category edit must be visible the next time the panel opens,
-      // not after the revalidate window. The client-side fileDetailCache
+      // not after the TTL window. The client-side fileDetailCache
       // still dedupes within a session and is invalidated on writes.
       { noStore: true },
     )) as {

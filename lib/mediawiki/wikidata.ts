@@ -161,9 +161,9 @@ export async function getWikidataItemStatements(
   qid: string,
   lang: string,
 ): Promise<WikidataItemStatements> {
-  // Bypass the fetch cache: this is read so the quick-edit panel can show the
-  // item's current statements, including ones WCE just published. The default
-  // 5-minute revalidate window would otherwise serve the pre-edit claims back
+  // Bypass the response cache: this is read so the quick-edit panel can show
+  // the item's current statements, including ones WCE just published. The
+  // default 5-minute TTL would otherwise serve the pre-edit claims back
   // right after a publish.
   const data = (await apiGet(
     WIKIDATA_API,

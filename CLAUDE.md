@@ -57,12 +57,16 @@ optional trailing `token?: string`: route handlers resolve the logged-in visitor
 via `lib/session.ts` and pass it explicitly; when omitted, the function falls back to the legacy
 owner-only token resolution. `lib/session.ts` has no dependency on `lib/mediawiki.ts` — it only
 manages the encrypted session cookie and PKCE handshake; route handlers are the integration point
-that reads a token from a session and hands it to `lib/mediawiki.ts`. Read calls revalidate every
-5 minutes; write calls are not cached. The hot category reads (children/parents/grid pages)
-additionally go through `lib/serverCache.ts` — a module-level TTL+LRU cache shared across
-visitors that the write functions in `lib/mediawiki.ts` invalidate per category, so a
-just-published edit is visible on the next read without giving up cross-visitor caching (Next's
-own tag invalidation can't do both in a Route Handler). The grid is paginated:
+that reads a token from a session and hands it to `lib/mediawiki.ts`. All server-side caching
+lives in `lib/serverCache.ts` — module-level TTL+LRU promise caches shared across visitors;
+Next's fetch cache is deliberately not used, keeping `lib/mediawiki/*` framework-free. Plain
+reads go through a 5-minute URL-keyed response cache inside `apiGet`; write calls are never
+cached; the hot category reads (children/parents/grid pages) bypass `apiGet`'s cache in favor of
+a category-keyed cache that the write functions in `lib/mediawiki.ts` invalidate per category, so
+a just-published edit is visible on the next read without giving up cross-visitor caching (Next's
+own tag invalidation can't do both in a Route Handler). The only file that touches
+`next/headers` is `lib/cookies.ts` — `lib/session.ts` and `i18n/*` read/write cookies through
+that seam. The grid is paginated:
 `getCategoryGridPage()` returns 50 files plus an opaque continue token, and the client
 (`getCategoryGridCached` in `lib/api.ts`) walks the pages, rendering them as they arrive, up to
 600 files. `lib/mediawiki.ts` is wrapped by proxy routes under

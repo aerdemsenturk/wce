@@ -1,10 +1,13 @@
 // MediaWiki Action API HTTP client shared by every lib/mediawiki/* module:
-// upstream rate limiting, Next fetch-cache policy, OAuth 2.0 token
-// management and CSRF minting.
+// upstream rate limiting, response caching, OAuth 2.0 token management and
+// CSRF minting. Deliberately framework-free: caching goes through
+// lib/serverCache.ts, not Next's fetch cache.
 
 // MediaWiki Action API client. Runs server-side (inside route handlers) so we
 // can send a proper User-Agent (Wikimedia requires it) and the OAuth bearer
 // token for write calls.
+import { upstreamResponseCache } from "@/lib/serverCache";
+
 export const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
 export const WIKIDATA_API = "https://www.wikidata.org/w/api.php";
 
@@ -89,16 +92,14 @@ export async function fetchWithRateLimitRetry(
 
 export interface ApiGetOptions {
   /**
-   * Skip Next's fetch cache entirely. Required for:
+   * Skip the response cache entirely. Required for:
    *  - any read-modify-write (the true latest revision is needed, or
    *    MediaWiki's own edit-conflict check using a stale basetimestamp
    *    will misfire);
    *  - category membership/info reads, so a move/rename/create is visible
-   *    immediately instead of waiting out the revalidate window. Next 16's
-   *    on-demand revalidateTag() is stale-while-revalidate (still serves one
-   *    stale response after invalidation) and its instant variant,
-   *    updateTag(), only works inside Server Actions — neither fits a
-   *    Route Handler that needs the *next* read to be guaranteed fresh.
+   *    immediately instead of waiting out the TTL window — those paths are
+   *    cached one layer up in upstreamReadCache instead, whose entries the
+   *    write paths invalidate per category.
    */
   noStore?: boolean;
 }
@@ -115,21 +116,27 @@ export async function apiGet(
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
 
-  const res = await fetchWithRateLimitRetry(url, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      "Api-User-Agent": USER_AGENT,
-      ...(await readAuthHeader()),
-    },
-    // Cache stable, slow-changing upstream responses briefly to be polite to
-    // the API; bypass entirely where freshness matters (see ApiGetOptions).
-    cache: options?.noStore ? "no-store" : undefined,
-    next: options?.noStore ? undefined : { revalidate: 300 },
-  });
-  if (!res.ok) {
-    throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
-  }
-  return res.json();
+  const fetchJson = async (): Promise<unknown> => {
+    const res = await fetchWithRateLimitRetry(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        "Api-User-Agent": USER_AGENT,
+        ...(await readAuthHeader()),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(`MediaWiki API ${res.status} ${res.statusText}`);
+    }
+    return res.json();
+  };
+
+  // Cache stable, slow-changing upstream responses briefly to be polite to
+  // the API; bypass entirely where freshness matters (see ApiGetOptions).
+  // The URL carries every parameter (including language), so it is the key;
+  // the auth header is process-constant and can't split the key space.
+  if (options?.noStore) return fetchJson();
+  return upstreamResponseCache.get(url.toString(), fetchJson);
 }
 
 // --- OAuth 2.0 access-token management -------------------------------------
@@ -349,9 +356,9 @@ export async function getCsrfToken(base: string = COMMONS_API, token?: string): 
  * Authenticated GET — same shape as `apiGet`, but attaches the OAuth Bearer
  * token. Used for calls that are read-only against the API but need the
  * token to resolve to "the connected account" (userinfo, usercontribs, the
- * account's own uploads). Always bypasses the fetch cache: these are
- * dropdown-triggered, low-traffic, and should reflect the latest Commons
- * state rather than `apiGet`'s 5-minute revalidate window.
+ * account's own uploads). Never cached: these are dropdown-triggered,
+ * low-traffic, and should reflect the latest Commons state rather than
+ * `apiGet`'s 5-minute response cache.
  */
 export async function apiGetAuthed(base: string, params: Params, explicitToken?: string): Promise<unknown> {
   const token = explicitToken ?? (await getAccessToken());

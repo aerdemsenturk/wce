@@ -1,12 +1,12 @@
 import { getRequestConfig } from "next-intl/server";
-import { cookies } from "next/headers";
+import { getCookieStore } from "@/lib/cookies";
 import { defaultLocale, isLocale, LOCALE_COOKIE } from "./config";
 
 // next-intl WITHOUT i18n routing: the active locale comes from a cookie,
 // so there is no `[locale]` segment in the URL.
 export default getRequestConfig(async () => {
-  const store = await cookies();
-  const cookieLocale = store.get(LOCALE_COOKIE)?.value;
+  const store = await getCookieStore();
+  const cookieLocale = store.get(LOCALE_COOKIE);
   const locale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
 
   return {
