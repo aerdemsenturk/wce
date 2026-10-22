@@ -21,11 +21,15 @@ export interface ParsedInformation {
   coordinates: Coordinates | null;
 }
 
+/** Remove <!-- comments -->, which never render (upload forms leave
+ * placeholders in them); an unterminated one runs to the end. */
+function stripComments(input: string): string {
+  return input.replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+}
+
 /** Strip the most common wiki markup so a value is presentable as plain text. */
 export function stripWikiMarkup(input: string): string {
-  let s = input;
-  // <!-- comments --> never render (upload forms leave placeholders in them)
-  s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  let s = stripComments(input);
   // [[User:Foo|Foo]] / [[Foo|Bar]] -> Bar ; [[Foo]] -> Foo
   s = s.replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1");
   // [https://... label] -> label
@@ -212,7 +216,19 @@ export function parseLocation(text: string): Coordinates | null {
   return { lat, lon };
 }
 
-/** Parse the {{Information}} template (plus location) from file wikitext. */
+/** Plain text for a displayed field, or null when its value uses a template:
+ * those only mean something once Commons renders them ({{Taken on|2022-12-06}}
+ * would strip to "Taken on", {{User:X/Attribution}} to the template's name),
+ * so the caller should fall back to the rendered extmetadata instead. */
+function renderablePlainText(raw: string): string | null {
+  const value = stripComments(raw);
+  if (value.includes("{{")) return null;
+  return stripWikiMarkup(value) || null;
+}
+
+/** Parse the {{Information}} template (plus location) from file wikitext.
+ * `date` and `author` are null when they can't be shown faithfully as plain
+ * text (see renderablePlainText). */
 export function parseInformation(text: string): ParsedInformation {
   const body = extractTemplateBody(text, "Information");
   const params = body ? parseParams(body) : new Map<string, string>();
@@ -220,11 +236,8 @@ export function parseInformation(text: string): ParsedInformation {
   const descRaw = params.get("description") ?? "";
   const descriptions = descRaw ? parseDescriptions(descRaw) : [];
 
-  const dateRaw = params.get("date") ?? "";
-  const date = dateRaw ? stripWikiMarkup(dateRaw) || null : null;
-
-  const authorRaw = params.get("author") ?? "";
-  const author = authorRaw ? stripWikiMarkup(authorRaw) || null : null;
+  const date = renderablePlainText(params.get("date") ?? "");
+  const author = renderablePlainText(params.get("author") ?? "");
 
   const sourceRaw = params.get("source") ?? "";
   const source = sourceRaw ? stripWikiMarkup(sourceRaw) || null : null;

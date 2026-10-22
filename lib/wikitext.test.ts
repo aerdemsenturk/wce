@@ -110,6 +110,19 @@ describe("parseInformation", () => {
     expect(info.date).toBe("2025-05-04");
   });
 
+  it("leaves templated date/author to Commons' rendered metadata", () => {
+    const info = parseInformation(
+      "{{Information\n| Date = {{Taken on|2022-12-06 11:22|location=Turkey}}\n| Author = {{User:Mike Peel/Attribution}}\n}}",
+    );
+    expect(info.date).toBeNull();
+    expect(info.author).toBeNull();
+  });
+
+  it("ignores templates inside comments when deciding that", () => {
+    const info = parseInformation("{{Information\n| Author = Jane <!-- {{own}} -->\n}}");
+    expect(info.author).toBe("Jane");
+  });
+
   it("returns empty/null fields when there is no Information template", () => {
     const info = parseInformation("[[Category:Cats]]");
     expect(info.descriptions).toEqual([]);
