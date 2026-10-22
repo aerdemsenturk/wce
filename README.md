@@ -149,12 +149,21 @@ Pushing to `main` deploys to production via GitHub Actions
 (`.github/workflows/deploy.yml`), in two gated steps:
 
 1. **verify** — `npm ci`, the test suite and a full production build run on a GitHub runner.
-   If anything fails, the deploy step never starts and the server is untouched.
-2. **deploy** — SSHes into the server and runs `git pull`, `npm ci`, `npm run build`,
-   `pm2 restart wce`.
+   The build uses `output: "standalone"`; together with `public/`, `.next/static` and
+   `ecosystem.config.cjs` it is packaged as `release.tgz`. If anything fails, the deploy step
+   never starts and the server is untouched.
+2. **deploy** — uploads `release.tgz`, unpacks it into
+   `~/htdocs/wce.birtakimseyler.com/releases/<commit-sha>/`, symlinks the server's
+   `.env.local` into it and re-registers the `wce` pm2 process from that release's
+   `ecosystem.config.cjs`. The three newest releases are kept.
+
+The server never runs `npm ci` or `next build`: it's a small host shared with other apps, and
+building there starves it of memory. Secrets live only in the server's
+`~/htdocs/wce.birtakimseyler.com/.env.local`. To roll back, on the server:
+`pm2 delete wce && pm2 start releases/<older-sha>/ecosystem.config.cjs && pm2 save`.
 
 Deploys are serialized (`concurrency: production-deploy`): overlapping pushes queue behind the
-running deploy instead of racing it in the same server directory.
+running deploy instead of racing it on the server.
 
 ## Status
 

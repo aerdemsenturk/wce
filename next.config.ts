@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle (.next/standalone) so CI can build it and
+  // the production host only has to unpack and restart — no npm ci or
+  // next build on the server.
+  output: "standalone",
   images: {
     remotePatterns: [
       // Commons serves thumbnails from upload.wikimedia.org

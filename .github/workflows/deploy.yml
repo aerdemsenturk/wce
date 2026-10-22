@@ -12,26 +12,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Gate: run tests and a full production build on a GitHub runner first.
-  # If this fails, the deploy job below never starts and the server (and the
-  # running site) is untouched.
+  # Gate: run tests and the production build on a GitHub runner. The build
+  # output is the release itself — the server never runs npm ci or next
+  # build (it's a small shared host and building there starves it of
+  # memory). If this fails, the deploy job never starts and the running site
+  # is untouched.
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Match the server's runtime, since the release runs as built here.
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Package standalone release
+        run: |
+          cp -r public .next/standalone/
+          cp -r .next/static .next/standalone/.next/
+          cp ecosystem.config.cjs .next/standalone/
+          tar -czf release.tgz -C .next/standalone .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release.tgz
+          retention-days: 7
 
   deploy:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+      - name: Upload release
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: release.tgz
+          # Relative to the deploy user's home directory.
+          target: htdocs/wce.birtakimseyler.com/releases/incoming
+      - name: Activate release
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -41,12 +67,24 @@ jobs:
             set -e
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            cd ~/htdocs/wce.birtakimseyler.com
-            # The server clone is a read-only mirror of origin/main; fetch +
-            # hard reset instead of pull so local drift or a rewritten
-            # history can never wedge a deploy.
-            git fetch origin main
-            git reset --hard origin/main
-            npm ci
-            npm run build
-            pm2 restart wce
+            SITE=~/htdocs/wce.birtakimseyler.com
+            RELEASE="$SITE/releases/${{ github.sha }}"
+            # Unpack into a fresh per-commit directory; the live release
+            # keeps running until pm2 switches over below.
+            rm -rf "$RELEASE"
+            mkdir -p "$RELEASE"
+            tar -xzf "$SITE/releases/incoming/release.tgz" -C "$RELEASE"
+            rm "$SITE/releases/incoming/release.tgz"
+            # Secrets stay on the server: the standalone server loads
+            # .env.local from its own directory at startup.
+            ln -s "$SITE/.env.local" "$RELEASE/.env.local"
+            # Re-register from the release's ecosystem file every time, so
+            # the pm2 definition (script path, cwd, env) always matches the
+            # code being deployed. Rollback: start an older release's
+            # ecosystem.config.cjs the same way.
+            pm2 delete wce || true
+            pm2 start "$RELEASE/ecosystem.config.cjs"
+            pm2 save
+            # Keep the three newest releases for rollback.
+            cd "$SITE/releases"
+            ls -1dt */ | grep -v '^incoming/$' | tail -n +4 | xargs -r rm -rf
