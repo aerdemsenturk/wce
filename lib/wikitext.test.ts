@@ -50,6 +50,11 @@ describe("stripWikiMarkup", () => {
   it("removes bold/italic apostrophes and trims", () => {
     expect(stripWikiMarkup("  '''bold''' and ''italic''  ")).toBe("bold and italic");
   });
+
+  it("drops HTML comments, including an unterminated one", () => {
+    expect(stripWikiMarkup("a <!-- note --> b")).toBe("a  b");
+    expect(stripWikiMarkup("text <!-- never closed")).toBe("text");
+  });
 });
 
 describe("stripHtml", () => {
@@ -95,6 +100,14 @@ describe("parseInformation", () => {
   it("treats a description with no language template as undetermined", () => {
     const info = parseInformation("{{Information|description=Just plain text}}");
     expect(info.descriptions).toEqual([{ lang: "und", value: "Just plain text" }]);
+  });
+
+  it("treats an upload form's commented-out placeholder as no description", () => {
+    const info = parseInformation(
+      "{{Information\n| Description = <!-- A description is required. -->\n| Date = 2025-05-04\n}}",
+    );
+    expect(info.descriptions).toEqual([]);
+    expect(info.date).toBe("2025-05-04");
   });
 
   it("returns empty/null fields when there is no Information template", () => {

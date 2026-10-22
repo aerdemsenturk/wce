@@ -24,6 +24,8 @@ export interface ParsedInformation {
 /** Strip the most common wiki markup so a value is presentable as plain text. */
 export function stripWikiMarkup(input: string): string {
   let s = input;
+  // <!-- comments --> never render (upload forms leave placeholders in them)
+  s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, "");
   // [[User:Foo|Foo]] / [[Foo|Bar]] -> Bar ; [[Foo]] -> Foo
   s = s.replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1");
   // [https://... label] -> label
