@@ -1,4 +1,3 @@
-import exifr from "exifr";
 import type { Coordinates } from "./types";
 
 export interface ExifData {
@@ -12,6 +11,10 @@ export interface ExifData {
  * neither, or aren't JPEGs with EXIF at all.
  */
 export async function readImageExif(file: File): Promise<ExifData> {
+  // Loaded on first use, in the browser only: at module load exifr probes for
+  // Node's fs/zlib, which fails (and logs "Couldn't load fs") when the upload
+  // modal is server-rendered.
+  const { default: exifr } = await import("exifr");
   const [tags, gps] = await Promise.all([
     exifr.parse(file, { pick: ["DateTimeOriginal", "CreateDate"] }).catch(() => null),
     exifr.gps(file).catch(() => null),
