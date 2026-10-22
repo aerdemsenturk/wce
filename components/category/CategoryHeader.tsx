@@ -204,7 +204,7 @@ export default function CategoryHeader() {
               alt=""
               fill
               sizes="100vw"
-              quality={70}
+              loading="eager"
               className="object-cover"
               aria-hidden
             />

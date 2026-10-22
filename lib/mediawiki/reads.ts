@@ -449,6 +449,14 @@ async function getCategoryGridPageUncached(
  * just to crop most of it away. */
 const COVER_IMAGE_WIDTH = 1200;
 
+/** Media types whose thumbnail is the picture itself; audio, video and office
+ * files get a generic file-type icon or a poster frame instead, which makes a
+ * poor banner. */
+const COVER_MEDIA_TYPES = new Set(["BITMAP", "DRAWING"]);
+
+/** How many category files to scan for one with a usable cover thumbnail. */
+const COVER_CANDIDATES = 20;
+
 /** A single wide thumbnail for the category header's cover banner. */
 export async function getCategoryCoverImage(
   category: string,
@@ -460,13 +468,16 @@ export async function getCategoryCoverImage(
     generator: "categorymembers",
     gcmtitle: withCategoryPrefix(category),
     gcmtype: "file",
-    gcmlimit: 1,
+    gcmlimit: COVER_CANDIDATES,
     prop: "imageinfo",
-    iiprop: "url",
+    iiprop: "url|mediatype",
     iiurlwidth: COVER_IMAGE_WIDTH,
   })) as { query?: { pages?: ImageInfoPage[] } };
 
-  return data.query?.pages?.[0]?.imageinfo?.[0]?.thumburl ?? null;
+  const cover = data.query?.pages
+    ?.map((page) => page.imageinfo?.[0])
+    .find((info) => info?.mediatype && COVER_MEDIA_TYPES.has(info.mediatype));
+  return cover?.thumburl ?? null;
 }
 
 /**
