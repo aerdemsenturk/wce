@@ -21,7 +21,6 @@ import FileCategoriesEditor from "./FileCategoriesEditor";
 import NominateDeletionModal from "./NominateDeletionModal";
 
 export default function DetailPanel() {
-  const t = useTranslations("detail");
   const { selectedFile, selectFile, visibleFiles } = useBrowser();
 
   const index = selectedFile
