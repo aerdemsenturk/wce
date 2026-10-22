@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       // Commons serves thumbnails from upload.wikimedia.org
       { protocol: "https", hostname: "upload.wikimedia.org" },
+      // ...and, for imageinfo thumbnails, from the dedicated thumb host
+      { protocol: "https", hostname: "thumb.wikimedia.org" },
       // ...but falls back to generic file-type icons (e.g. for audio/video
       // files with no real thumbnail) served from commons.wikimedia.org itself
       { protocol: "https", hostname: "commons.wikimedia.org" },
